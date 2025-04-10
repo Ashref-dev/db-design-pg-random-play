@@ -137,27 +137,27 @@ Here's a breakdown of the tasks required, aligned with the project document\[cit
 
 ### **Phase 4: Testing**
 
-* \[ \] **Task 4.1: Develop Test Scenarios**  
-  * \[ \] Define detailed scenarios covering:  
+* [x] **Task 4.1: Develop Test Scenarios**  
+  * [x] Define detailed scenarios covering:  
     * CRUD operations for each entity.  
     * All search functions with various inputs (matching, non-matching, patterns).  
     * Custom logic: successful rental, rental attempt with no stock, successful return, late return, fee calculation.  
     * Trigger actions: verify stock updates, verify delete prevention, check audit log entries.  
     * Edge cases: invalid inputs, boundary conditions, concurrent access issues (if applicable).  
-  * \[ \] *Deliverable:* Test scenarios description (tests/test\_scenarios.md).  
-* \[ \] **Task 4.2: Write Test Scripts/Queries**  
-  * \[ \] Write SQL scripts (psql scripts or individual .sql files) to execute the test scenarios.  
-  * \[ \] Use SELECT statements to call functions and procedures.  
-  * \[ \] Use DO $$ ... $$ blocks for sequences of operations or checks.  
-  * \[ \] Include INSERT, UPDATE, DELETE to set up preconditions and test triggers.  
-  * \[ \] Verify results by querying tables, checking return values, or catching expected exceptions. Consider using pgTAP extension for more structured testing if desired.  
-  * \[ \] *Deliverable:* SQL files in tests/.  
-* \[ \] **Task 4.3: Execute Tests & Document Results**  
-  * \[ \] Run the test scripts against the populated database.  
-  * \[ \] Document the results: indicate pass/fail for each scenario. Include output logs or screenshots for key tests, especially failures.  
-  * \[ \] Identify, debug, and fix any issues found in the code (tables, functions, triggers).  
-  * \[ \] Re-run tests after fixes.  
-  * \[ \] *Deliverable:* Documented test results, in the form of a simple html and js file that contains the pgsql client thta runs and documents all the tests with their traces and outputs in a simple html interface.
+  * [x] *Deliverable:* Test scenarios description (tests/test\_scenarios.md).  
+* [x] **Task 4.2: Write Test Scripts/Queries**  
+  * [x] Write SQL scripts (psql scripts or individual .sql files) to execute the test scenarios.  
+  * [x] Use SELECT statements to call functions and procedures.  
+  * [x] Use DO $$ ... $$ blocks for sequences of operations or checks.  
+  * [x] Include INSERT, UPDATE, DELETE to set up preconditions and test triggers.  
+  * [x] Verify results by querying tables, checking return values, or catching expected exceptions. Consider using pgTAP extension for more structured testing if desired.  
+  * [x] *Deliverable:* SQL files in tests/.  
+* [x] **Task 4.3: Execute Tests & Document Results**  
+  * [x] Run the test scripts against the populated database.  
+  * [x] Document the results: indicate pass/fail for each scenario. Include output logs or screenshots for key tests, especially failures.  
+  * [x] Identify, debug, and fix any issues found in the code (tables, functions, triggers).  
+  * [x] Re-run tests after fixes.  
+  * [x] *Deliverable:* Documented test results, in the form of a simple html and js file that contains the pgsql client thta runs and documents all the tests with their traces and outputs in a simple html interface.
 
 ### **Phase 5: Documentation**
 
@@ -180,5 +180,4 @@ Here's a breakdown of the tasks required, aligned with the project document\[cit
 * \[ \] **Task D.1: Package the Project**  
   * \[ \] Ensure all code (.sql files), documentation (.md files, including Mermaid diagrams), and test scripts are organized according to the defined project structure within the random\_play\_db/ root folder.  
   * \[ \] Add a README.md file at the root (random\_play\_db/README.md) explaining the project, the folder structure, and how to set up the database, populate data, and run tests.  
-  * \[ \] Create a compressed archive (e.g., .zip or .tar.gz) of the entire random\_play\_db/ folder.  
-  * \[ \] *Deliverable:* The final compressed project package containing all source code, documentation, and scripts in the specified structure.
+  * \[ \] *Deliverable:* The final project package containing all source code, documentation, and scripts in the specified structure.

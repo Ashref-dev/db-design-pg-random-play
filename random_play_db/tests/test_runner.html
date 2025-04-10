@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Play Video Tape Store - PL/PGSQL Test Runner</title>
+    <!-- pg.js CDN removed, no longer needed in frontend -->
+    <script defer src="test_runner.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+        
+        .test-section {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .test-header {
+            padding: 10px 15px;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #ddd;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .test-header h3 {
+            margin: 0;
+        }
+        
+        .test-content {
+            padding: 15px;
+            display: none;
+        }
+        
+        .active .test-content {
+            display: block;
+        }
+        
+        .btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-primary {
+            background-color: #3498db;
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            background-color: #2980b9;
+        }
+        
+        .btn-success {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            background-color: #27ae60;
+        }
+        
+        .btn-warning {
+            background-color: #f1c40f;
+            color: white;
+        }
+        
+        .btn-warning:hover:not(:disabled) {
+            background-color: #f39c12;
+        }
+        
+        .output {
+            background-color: #1e1e1e;
+            color: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .output .success {
+            color: #2ecc71;
+        }
+        
+        .output .error {
+            color: #e74c3c;
+        }
+        
+        .output .notice {
+            color: #3498db;
+        }
+        
+        .status {
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 3px;
+        }
+        
+        .status-pending {
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+        
+        .status-running {
+            background-color: #f1c40f;
+            color: white;
+        }
+        
+        .status-success {
+            background-color: #2ecc71;
+            color: white;
+        }
+        
+        .status-failed {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
+        .summary {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 5px solid #3498db;
+        }
+        
+        .test-actions {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        /* Connection form styles */
+        .connection-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border-left: 5px solid #3498db;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Random Play Video Tape Store - Test Runner</h1>
+        <p>This interface allows you to run the test scripts and view the results in real-time.</p>
+        
+        <!-- Database Connection Form -->
+        <div class="connection-section">
+            <h2>Database Connection</h2>
+            <p>Enter your PostgreSQL connection string to connect.</p>
+            
+            <!-- Connection String Form -->
+            <form id="connection-string-form">
+                <div class="form-group">
+                    <label for="connection-string">Connection String</label>
+                    <input type="text" id="connection-string" name="connection-string"
+                        value="" 
+                        placeholder="postgresql://username:password@host:port/database?sslmode=require" 
+                        required>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Connect</button>
+            </form>
+            
+            <div id="connection-status" style="margin-top: 10px;"></div>
+        </div>
+        
+        <div class="test-actions">
+            <button id="run-all" class="btn btn-primary" disabled>Run All Tests</button>
+            <button id="clear-all" class="btn btn-warning">Clear All Results</button>
+        </div>
+        
+        <div class="test-section" id="customer-tests">
+            <div class="test-header">
+                <h3>Customer Management Tests (C1-C7)</h3>
+                <span class="status status-pending">Pending</span>
+            </div>
+            <div class="test-content">
+                <button class="run-test btn btn-success" data-script="test_crud_customers.sql" disabled>Run Tests</button>
+                <div class="output" id="customer-output"></div>
+            </div>
+        </div>
+        
+        <div class="test-section" id="rental-tests">
+            <div class="test-header">
+                <h3>Rental Operations Tests (R1-R6)</h3>
+                <span class="status status-pending">Pending</span>
+            </div>
+            <div class="test-content">
+                <button class="run-test btn btn-success" data-script="test_rental_operations.sql" disabled>Run Tests</button>
+                <div class="output" id="rental-output"></div>
+            </div>
+        </div>
+        
+        <div class="test-section" id="trigger-tests">
+            <div class="test-header">
+                <h3>Trigger Tests (TG1-TG9)</h3>
+                <span class="status status-pending">Pending</span>
+            </div>
+            <div class="test-content">
+                <button class="run-test btn btn-success" data-script="test_triggers.sql" disabled>Run Tests</button>
+                <div class="output" id="trigger-output"></div>
+            </div>
+        </div>
+        
+        <div class="summary" id="test-summary">
+            <h2>Test Summary</h2>
+            <p>No tests have been run yet.</p>
+        </div>
+    </div>
+</body>
+</html> 
