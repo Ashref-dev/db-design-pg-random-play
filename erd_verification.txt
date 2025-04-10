@@ -1,0 +1,24 @@
+                     List of relations
+ Schema |           Name            |   Type   |   Owner    
+--------+---------------------------+----------+------------
+ public | actors                    | table    | ashref1944
+ public | actors_actor_id_seq       | sequence | ashref1944
+ public | audit_log                 | table    | ashref1944
+ public | audit_log_log_id_seq      | sequence | ashref1944
+ public | customers                 | table    | ashref1944
+ public | customers_customer_id_seq | sequence | ashref1944
+ public | genres                    | table    | ashref1944
+ public | genres_genre_id_seq       | sequence | ashref1944
+ public | rental_code_seq           | sequence | ashref1944
+ public | rentals                   | table    | ashref1944
+ public | rentals_rental_id_seq     | sequence | ashref1944
+ public | tape_actors               | table    | ashref1944
+ public | tapes                     | table    | ashref1944
+ public | tapes_tape_id_seq         | sequence | ashref1944
+ public | vw_current_rentals        | view     | ashref1944
+ public | vw_customer_rental_stats  | view     | ashref1944
+ public | vw_genre_stats            | view     | ashref1944
+ public | vw_rental_history         | view     | ashref1944
+ public | vw_tape_details           | view     | ashref1944
+(19 rows)
+

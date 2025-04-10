@@ -1,0 +1,23 @@
+                                            Table "public.rentals"
+   Column    |            Type             | Collation | Nullable |                  Default                   
+-------------+-----------------------------+-----------+----------+--------------------------------------------
+ rental_id   | integer                     |           | not null | nextval('rentals_rental_id_seq'::regclass)
+ customer_id | integer                     |           | not null | 
+ tape_id     | integer                     |           | not null | 
+ rental_date | timestamp without time zone |           | not null | CURRENT_TIMESTAMP
+ due_date    | timestamp without time zone |           | not null | 
+ return_date | timestamp without time zone |           |          | 
+ late_fees   | numeric(5,2)                |           |          | 0.00
+Indexes:
+    "rentals_pkey" PRIMARY KEY, btree (rental_id)
+    "idx_rentals_customer_id" btree (customer_id)
+    "idx_rentals_due_date" btree (due_date)
+    "idx_rentals_rental_date" btree (rental_date)
+    "idx_rentals_return_date" btree (return_date)
+    "idx_rentals_tape_id" btree (tape_id)
+Check constraints:
+    "check_dates" CHECK (return_date IS NULL OR return_date >= rental_date)
+Foreign-key constraints:
+    "fk_customer" FOREIGN KEY (customer_id) REFERENCES customers(customer_id) ON UPDATE CASCADE
+    "fk_tape" FOREIGN KEY (tape_id) REFERENCES tapes(tape_id) ON UPDATE CASCADE
+

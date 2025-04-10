@@ -1,0 +1,10 @@
+    ?column?     
+-----------------
+ Genres: 15
+ Actors: 29
+ Customers: 20
+ Tapes: 32
+ Tape-Actors: 12
+ Rentals: 0
+(6 rows)
+

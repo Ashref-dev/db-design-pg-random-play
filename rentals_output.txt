@@ -1,0 +1,49 @@
+TRUNCATE TABLE
+CREATE FUNCTION
+ generate_sample_rentals 
+-------------------------
+ 
+(1 row)
+
+DROP FUNCTION
+ rental_id |     customer     |           title            |        rental_date         |          due_date          |        return_date         | late_fees |  status  
+-----------+------------------+----------------------------+----------------------------+----------------------------+----------------------------+-----------+----------
+         7 | Emily Johnson    | The Green Mile             | 2025-04-10 07:39:57.123552 | 2025-04-17 07:39:57.123552 |                            |      0.00 | Active
+        21 | James Hernandez  | The Notebook               | 2025-04-07 20:15:37.637388 | 2025-04-12 20:15:37.637388 |                            |      0.00 | Active
+        25 | Patricia Walker  | Ghostbusters               | 2025-04-05 14:36:23.125229 | 2025-04-10 14:36:23.125229 |                            |      0.00 | Overdue
+        19 | James Hernandez  | Superbad                   | 2025-04-03 23:46:28.183706 | 2025-04-08 23:46:28.183706 |                            |      0.00 | Overdue
+        33 | Linda King       | Alien                      | 2025-04-03 00:48:06.317303 | 2025-04-08 00:48:06.317303 |                            |      0.00 | Overdue
+        11 | David Jones      | The Green Mile             | 2025-04-02 15:39:48.161896 | 2025-04-09 15:39:48.161896 |                            |      0.00 | Overdue
+        26 | Patricia Walker  | Dumb and Dumber            | 2025-04-01 21:19:11.434094 | 2025-04-06 21:19:11.434094 |                            |      0.00 | Overdue
+         3 | John Smith       | Psycho                     | 2025-04-01 11:23:04.333888 | 2025-04-06 11:23:04.333888 |                            |      0.00 | Overdue
+        37 | Richard Green    | E.T. the Extra-Terrestrial | 2025-04-01 04:38:44.640673 | 2025-04-06 04:38:44.640673 |                            |      0.00 | Overdue
+        23 | Jennifer Lopez   | Home Alone                 | 2025-03-31 15:45:42.953268 | 2025-04-07 15:45:42.953268 |                            |      0.00 | Overdue
+        13 | Jessica Garcia   | Die Hard                   | 2025-03-29 06:12:37.321611 | 2025-04-03 06:12:37.321611 |                            |      0.00 | Overdue
+         9 | Michael Williams | Pretty Woman               | 2025-03-27 07:21:52.057412 | 2025-04-01 07:21:52.057412 |                            |      0.00 | Overdue
+         5 | Emily Johnson    | Die Hard                   | 2025-03-26 02:33:47.571228 | 2025-03-31 02:33:47.571228 |                            |      0.00 | Overdue
+        32 | Linda King       | Pretty Woman               | 2025-03-25 23:01:31.574517 | 2025-03-30 23:01:31.574517 |                            |      0.00 | Overdue
+        10 | Sarah Brown      | The Ring                   | 2025-03-25 22:25:47.59808  | 2025-03-28 22:25:47.59808  |                            |      0.00 | Overdue
+        24 | Robert Lee       | The Matrix                 | 2025-03-25 08:35:11.264669 | 2025-03-30 08:35:11.264669 |                            |      0.00 | Overdue
+         8 | Michael Williams | Blade Runner               | 2025-03-24 13:04:00.214662 | 2025-03-29 13:04:00.214662 |                            |      0.00 | Overdue
+        16 | Lisa Rodriguez   | The Shining                | 2025-03-23 22:03:23.109783 | 2025-03-26 22:03:23.109783 |                            |      0.00 | Overdue
+        27 | Elizabeth Young  | The Lion King              | 2025-03-23 15:54:43.380205 | 2025-03-30 15:54:43.380205 |                            |      0.00 | Overdue
+        15 | Daniel Martinez  | Home Alone                 | 2025-03-23 15:40:36.737424 | 2025-03-30 15:40:36.737424 |                            |      0.00 | Overdue
+        18 | Lisa Rodriguez   | Star Wars: A New Hope      | 2025-03-23 15:06:57.930955 | 2025-03-28 15:06:57.930955 |                            |      0.00 | Overdue
+        30 | Matthew Allen    | Forrest Gump               | 2025-03-23 02:50:56.406142 | 2025-03-30 02:50:56.406142 |                            |      0.00 | Overdue
+        12 | Jessica Garcia   | Blade Runner               | 2025-03-22 22:19:39.299249 | 2025-03-27 22:19:39.299249 |                            |      0.00 | Overdue
+         6 | Emily Johnson    | Se7en                      | 2025-03-21 20:21:53.358064 | 2025-03-26 20:21:53.358064 | 2025-03-26 20:21:53.358064 |      0.00 | Returned
+        28 | Elizabeth Young  | Die Hard                   | 2025-03-19 18:40:17.134103 | 2025-03-24 18:40:17.134103 |                            |      0.00 | Overdue
+         4 | John Smith       | John Wick                  | 2025-03-19 14:37:25.627464 | 2025-03-24 14:37:25.627464 |                            |      0.00 | Overdue
+        17 | Lisa Rodriguez   | Mad Max: Fury Road         | 2025-03-19 08:07:19.559152 | 2025-03-24 08:07:19.559152 |                            |      0.00 | Overdue
+        34 | Barbara Scott    | Alien                      | 2025-03-18 16:12:40.345784 | 2025-03-23 16:12:40.345784 |                            |      0.00 | Overdue
+        29 | Elizabeth Young  | Home Alone                 | 2025-03-17 13:49:52.108055 | 2025-03-24 13:49:52.108055 |                            |      0.00 | Overdue
+        38 | Susan Baker      | The Lion King              | 2025-03-17 09:31:49.738704 | 2025-03-24 09:31:49.738704 |                            |      0.00 | Overdue
+        20 | James Hernandez  | Gone Girl                  | 2025-03-17 07:22:33.912609 | 2025-03-22 07:22:33.912609 |                            |      0.00 | Overdue
+        31 | Linda King       | Dumb and Dumber            | 2025-03-16 07:49:47.438745 | 2025-03-21 07:49:47.438745 |                            |      0.00 | Overdue
+        14 | Jessica Garcia   | Titanic                    | 2025-03-15 12:12:12.089399 | 2025-03-20 12:12:12.089399 |                            |      0.00 | Overdue
+        22 | Jennifer Lopez   | Gone Girl                  | 2025-03-15 09:55:45.331322 | 2025-03-20 09:55:45.331322 |                            |      0.00 | Overdue
+         2 | John Smith       | Ghostbusters               | 2025-03-14 06:55:14.851049 | 2025-03-19 06:55:14.851049 |                            |      0.00 | Overdue
+        35 | Richard Green    | The Wizard of Oz           | 2025-03-13 14:36:45.064065 | 2025-03-20 14:36:45.064065 |                            |      0.00 | Overdue
+        36 | Richard Green    | When Harry Met Sally       | 2025-03-13 09:45:57.135687 | 2025-03-18 09:45:57.135687 |                            |      0.00 | Overdue
+(37 rows)
+
