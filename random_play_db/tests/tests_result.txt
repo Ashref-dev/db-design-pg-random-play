@@ -1,0 +1,139 @@
+====================================================
+  RANDOM PLAY VIDEO TAPE STORE - TEST RESULTS
+  2025-04-18 16:04:01
+====================================================
+
+
+===== CUSTOMER TESTS =====
+psql:sql_tests/test_crud_customers.sql:44: NOTICE:  Test C1: Create a new customer with valid information
+psql:sql_tests/test_crud_customers.sql:44: NOTICE:  Test C1 FAILED with error: A customer with email john.test@example.com already exists
+DO
+psql:sql_tests/test_crud_customers.sql:76: NOTICE:  Test C2: Attempt to create a customer with duplicate email (should fail)
+psql:sql_tests/test_crud_customers.sql:76: NOTICE:  Test C2 PASSED: Received expected error: A customer with email john.test@example.com already exists
+DO
+psql:sql_tests/test_crud_customers.sql:112: NOTICE:  Test C3: Retrieve a customer by ID
+psql:sql_tests/test_crud_customers.sql:112: NOTICE:  Test C3 PASSED: Successfully retrieved customer with ID 30
+psql:sql_tests/test_crud_customers.sql:112: NOTICE:  Customer details: John TestUser (Email: john.test@example.com)
+DO
+psql:sql_tests/test_crud_customers.sql:140: NOTICE:  Test C4: Retrieve a customer by email
+psql:sql_tests/test_crud_customers.sql:140: NOTICE:  Test C4 PASSED: Successfully retrieved customer by email
+psql:sql_tests/test_crud_customers.sql:140: NOTICE:  Customer details: ID 30, John TestUser (Email: john.test@example.com)
+DO
+psql:sql_tests/test_crud_customers.sql:191: NOTICE:  Test C5: Update a customer's contact information
+psql:sql_tests/test_crud_customers.sql:191: ERROR:  A customer with this email already exists
+CONTEXT:  PL/pgSQL function update_customer(integer,character varying,character varying,character varying,character varying,text,boolean) line 16 at RAISE
+SQL statement "SELECT pkg_customers.update_customer(
+        v_customer_id,
+        'John',
+        'UpdatedLastName',
+        'john.updated@example.com',
+        '555-999-8888',
+        '789 Updated St, New City',
+        TRUE
+    )"
+PL/pgSQL function inline_code_block line 19 at SQL statement
+psql:sql_tests/test_crud_customers.sql:230: NOTICE:  Test C6: Delete a customer with no rental history
+psql:sql_tests/test_crud_customers.sql:230: NOTICE:  Test C6 PASSED: Successfully deleted customer with ID 119
+DO
+psql:sql_tests/test_crud_customers.sql:282: NOTICE:  Test C7: Attempt to delete a customer with active rentals (should fail)
+psql:sql_tests/test_crud_customers.sql:282: ERROR:  duplicate key value violates unique constraint "customers_email_key"
+DETAIL:  Key (email)=(jane.active@example.com) already exists.
+CONTEXT:  SQL statement "INSERT INTO customers (first_name, last_name, email, phone, address)
+    VALUES ('Jane', 'ActiveRental', 'jane.active@example.com', '555-888-7777', '123 Rental St')
+    RETURNING customer_id"
+PL/pgSQL function inline_code_block line 11 at SQL statement
+
+
+===== RENTAL TESTS =====
+psql:sql_tests/test_rental_operations.sql:63: NOTICE:  Test R1: Rent a tape to a customer (happy path)
+psql:sql_tests/test_rental_operations.sql:63: NOTICE:  Test R1 FAILED with error: A customer with email rental.happypath@example.com already exists
+DO
+psql:sql_tests/test_rental_operations.sql:128: NOTICE:  Test R2: Attempt to rent a tape with zero stock available (should fail)
+psql:sql_tests/test_rental_operations.sql:128: NOTICE:  Test R2 PASSED: Received expected error: function pkg_rentals.rent_tape(integer, integer) is not unique
+DO
+psql:sql_tests/test_rental_operations.sql:210: NOTICE:  Test R3: Return a tape (on time)
+psql:sql_tests/test_rental_operations.sql:210: ERROR:  function pkg_rentals.rent_tape(integer, integer) is not unique
+LINE 1: SELECT pkg_rentals.rent_tape(v_customer_id, v_tape_id)
+               ^
+HINT:  Could not choose a best candidate function. You might need to add explicit type casts.
+QUERY:  SELECT pkg_rentals.rent_tape(v_customer_id, v_tape_id)
+CONTEXT:  PL/pgSQL function inline_code_block line 36 at SQL statement
+psql:sql_tests/test_rental_operations.sql:273: NOTICE:  Test R4: Return a tape (late, with late fees)
+psql:sql_tests/test_rental_operations.sql:273: ERROR:  A customer with email latefee.customer@example.com already exists
+CONTEXT:  PL/pgSQL function add_customer(character varying,character varying,character varying,character varying,text) line 32 at RAISE
+SQL statement "SELECT pkg_customers.add_customer(
+        'LateFee', 'Customer', 'latefee.customer@example.com', 
+        '555-LATE', '456 Late Fee Rd, Testville'
+    )"
+PL/pgSQL function inline_code_block line 12 at SQL statement
+psql:sql_tests/test_rental_operations.sql:343: NOTICE:  Test R5: Calculate late fees for an overdue rental
+psql:sql_tests/test_rental_operations.sql:343: ERROR:  A customer with email calcfee.customer@example.com already exists
+CONTEXT:  PL/pgSQL function add_customer(character varying,character varying,character varying,character varying,text) line 32 at RAISE
+SQL statement "SELECT pkg_customers.add_customer(
+        'CalcFee', 'Customer', 'calcfee.customer@example.com', 
+        '555-CALC', '789 Calc Fee Ave, Testville'
+    )"
+PL/pgSQL function inline_code_block line 12 at SQL statement
+psql:sql_tests/test_rental_operations.sql:409: NOTICE:  Test R6: Extend a rental period
+psql:sql_tests/test_rental_operations.sql:409: ERROR:  A customer with email extend.customer@example.com already exists
+CONTEXT:  PL/pgSQL function add_customer(character varying,character varying,character varying,character varying,text) line 32 at RAISE
+SQL statement "SELECT pkg_customers.add_customer(
+        'Extend', 'Customer', 'extend.customer@example.com', 
+        '555-EXTEND', '101 Extension Blvd, Testville'
+    )"
+PL/pgSQL function inline_code_block line 13 at SQL statement
+
+
+===== TRIGGER TESTS =====
+psql:sql_tests/test_triggers.sql:58: NOTICE:  Test TG1: Verify tape stock decreases when rented
+psql:sql_tests/test_triggers.sql:58: ERROR:  duplicate key value violates unique constraint "customers_email_key"
+DETAIL:  Key (email)=(trigger.test@example.com) already exists.
+CONTEXT:  SQL statement "INSERT INTO customers (
+        first_name, last_name, email, phone, address, registration_date, active
+    ) VALUES (
+        'Trigger', 'TestUser', 'trigger.test@example.com', 
+        '555-TRIGGER', '123 Trigger St, Testville', CURRENT_DATE, TRUE
+    ) RETURNING customer_id"
+PL/pgSQL function inline_code_block line 11 at SQL statement
+psql:sql_tests/test_triggers.sql:129: NOTICE:  Test TG2: Verify tape stock increases when returned
+psql:sql_tests/test_triggers.sql:129: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 99
+psql:sql_tests/test_triggers.sql:129: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 20 after rental.
+psql:sql_tests/test_triggers.sql:129: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 99
+psql:sql_tests/test_triggers.sql:129: NOTICE:  Tape stock updated: Increased stock_available for tape ID 20 after return.
+psql:sql_tests/test_triggers.sql:129: NOTICE:  Test TG2 PASSED: Stock correctly increased from 1 to 2
+DO
+psql:sql_tests/test_triggers.sql:205: NOTICE:  Test TG3: Verify tape stock remains unchanged when rental is updated (without return)
+psql:sql_tests/test_triggers.sql:205: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 100
+psql:sql_tests/test_triggers.sql:205: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 15 after rental.
+psql:sql_tests/test_triggers.sql:205: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 100
+psql:sql_tests/test_triggers.sql:205: NOTICE:  Test TG3 PASSED: Stock correctly remained at 0 after rental update
+psql:sql_tests/test_triggers.sql:205: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 100
+psql:sql_tests/test_triggers.sql:205: NOTICE:  Tape stock updated: Increased stock_available for tape ID 15 after return.
+DO
+psql:sql_tests/test_triggers.sql:277: NOTICE:  Test TG4: Verify prevention of customer deletion with active rentals
+psql:sql_tests/test_triggers.sql:277: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 101
+psql:sql_tests/test_triggers.sql:277: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 21 after rental.
+psql:sql_tests/test_triggers.sql:277: NOTICE:  Test TG4 PASSED: Received expected error: Error deleting customer: Cannot delete customer with ID 126 as they have 1 active rentals
+psql:sql_tests/test_triggers.sql:277: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 101
+psql:sql_tests/test_triggers.sql:277: NOTICE:  Tape stock updated: Increased stock_available for tape ID 21 after return.
+DO
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Test TG5-TG8: Verify audit log entries for rental activities
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 102
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 4 after rental.
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Test TG5 PASSED: Audit log entry created for rental creation (INSERT)
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 102
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Test TG6 PASSED: Audit log entry created for rental update (UPDATE)
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 102
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Tape stock updated: Increased stock_available for tape ID 4 after return.
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Test TG7 PASSED: Audit log entry created for rental return (UPDATE)
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Audit log entry created for DELETE on rentals, record ID: 102
+psql:sql_tests/test_triggers.sql:375: NOTICE:  Test TG8 PASSED: Audit log entry created for rental deletion (DELETE)
+DO
+psql:sql_tests/test_triggers.sql:433: NOTICE:  Test TG9: Verify prevention of renting unavailable tapes
+psql:sql_tests/test_triggers.sql:433: NOTICE:  Test TG9 PASSED: Received expected error: Cannot rent tape "Psycho" (ID: 27): No copies currently in stock.
+DO
+
+
+====================================================
+  TEST EXECUTION COMPLETED
+====================================================

@@ -6,50 +6,29 @@
 CREATE OR REPLACE FUNCTION trg_check_tape_availability()
 RETURNS TRIGGER AS $$
 DECLARE
-    v_is_available BOOLEAN;
-    v_in_stock INTEGER;
-    v_status VARCHAR(50);
-    v_movie_title VARCHAR(255);
+    v_stock_available INTEGER;
+    v_tape_title VARCHAR(100);
 BEGIN
-    -- Get the tape's current status and stock
+    -- Get the tape's current stock and title
     SELECT 
-        t.status, 
-        t.in_stock,
-        m.title INTO v_status, v_in_stock, v_movie_title
+        stock_available, title 
+    INTO 
+        v_stock_available, v_tape_title
     FROM 
-        tapes t
-        JOIN movies m ON t.movie_id = m.movie_id
+        tapes
     WHERE 
-        t.tape_id = NEW.tape_id;
-    
-    -- Check if the tape is already rented (not available)
-    SELECT 
-        CASE WHEN COUNT(*) = 0 THEN TRUE ELSE FALSE END INTO v_is_available
-    FROM 
-        rentals r
-    WHERE 
-        r.tape_id = NEW.tape_id 
-        AND r.return_date IS NULL;
+        tape_id = NEW.tape_id;
+
+    -- Check if the tape exists (v_stock_available would be NULL if not)
+    IF v_stock_available IS NULL THEN
+         RAISE EXCEPTION 'Tape with ID % does not exist.', NEW.tape_id;
+    END IF;
     
     -- Validate availability
-    IF v_in_stock <= 0 THEN
-        RAISE EXCEPTION 'Cannot rent tape (ID: %) for movie "%": No copies in stock', 
-            NEW.tape_id, v_movie_title;
-    END IF;
-    
-    IF v_status = 'DAMAGED' THEN
-        RAISE EXCEPTION 'Cannot rent tape (ID: %) for movie "%": Tape is marked as damaged', 
-            NEW.tape_id, v_movie_title;
-    END IF;
-    
-    IF v_status = 'LOST' THEN
-        RAISE EXCEPTION 'Cannot rent tape (ID: %) for movie "%": Tape is marked as lost', 
-            NEW.tape_id, v_movie_title;
-    END IF;
-    
-    IF NOT v_is_available THEN
-        RAISE EXCEPTION 'Cannot rent tape (ID: %) for movie "%": Tape is already rented out', 
-            NEW.tape_id, v_movie_title;
+    IF v_stock_available <= 0 THEN
+        -- Raise an exception to prevent the INSERT operation
+        RAISE EXCEPTION 'Cannot rent tape "%" (ID: %): No copies currently in stock.', 
+            v_tape_title, NEW.tape_id;
     END IF;
     
     -- If we get here, the tape is available for rental
@@ -68,5 +47,5 @@ EXECUTE FUNCTION trg_check_tape_availability();
 
 -- Add a comment to the trigger
 COMMENT ON TRIGGER trg_check_tape_availability ON rentals IS
-'Trigger to check if a tape is available for rental before allowing it to be rented out.
-Prevents renting tapes that are already rented, damaged, lost, or out of stock.'; 
+'Trigger to check if a tape has stock_available > 0 before allowing a rental INSERT.
+Prevents renting tapes that are out of stock by raising an exception.'; 

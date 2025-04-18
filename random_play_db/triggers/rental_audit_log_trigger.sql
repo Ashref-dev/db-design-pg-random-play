@@ -2,22 +2,9 @@
 -- This trigger records all INSERT, UPDATE, and DELETE operations on the rentals table
 
 -- First, create the rental_audit_log table to store audit records
+-- REMOVED: CREATE TABLE IF NOT EXISTS ... (Should be done in schema setup)
 
-CREATE TABLE IF NOT EXISTS rental_audit_log (
-    log_id SERIAL PRIMARY KEY,
-    rental_id INTEGER,
-    customer_id INTEGER,
-    tape_id INTEGER,
-    action_type VARCHAR(50) NOT NULL,
-    action_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    action_details JSONB,
-    performed_by VARCHAR(100) DEFAULT CURRENT_USER
-);
-
--- Create index for faster lookups
-CREATE INDEX IF NOT EXISTS idx_rental_audit_log_rental_id ON rental_audit_log(rental_id);
-CREATE INDEX IF NOT EXISTS idx_rental_audit_log_customer_id ON rental_audit_log(customer_id);
-CREATE INDEX IF NOT EXISTS idx_rental_audit_log_action_timestamp ON rental_audit_log(action_timestamp);
+-- REMOVED: CREATE INDEX IF NOT EXISTS ... (Should be done in schema setup)
 
 -- Drop existing trigger if it exists
 DROP TRIGGER IF EXISTS trg_rental_audit ON rentals;
@@ -26,108 +13,57 @@ DROP TRIGGER IF EXISTS trg_rental_audit ON rentals;
 CREATE OR REPLACE FUNCTION trg_rental_audit()
 RETURNS TRIGGER AS $$
 DECLARE
-    movie_title TEXT;
-    audit_details TEXT;
+    v_operation VARCHAR(10);
+    v_record_id INTEGER;
+    v_details TEXT;
 BEGIN
-    -- Get the movie title for better readability in the audit log
-    SELECT m.title INTO movie_title
-    FROM tapes t
-    JOIN movies m ON t.movie_id = m.movie_id
-    WHERE t.tape_id = COALESCE(NEW.tape_id, OLD.tape_id);
-    
-    -- Handle different operations
+    -- Determine operation type and record ID
     IF TG_OP = 'INSERT' THEN
-        -- New rental created
-        audit_details := 'New rental created. Expected return date: ' || NEW.expected_return_date;
-        
-        INSERT INTO rental_audit_log (
-            action_type, 
-            rental_id, 
-            customer_id, 
-            tape_id, 
-            movie_title, 
-            details
-        ) VALUES (
-            'RENT', 
-            NEW.rental_id, 
-            NEW.customer_id, 
-            NEW.tape_id, 
-            movie_title, 
-            audit_details
-        );
-        
+        v_operation := 'INSERT';
+        v_record_id := NEW.rental_id;
+        v_details := 'Rental created for customer ' || NEW.customer_id || ', tape ' || NEW.tape_id || '. Due: ' || NEW.due_date;
     ELSIF TG_OP = 'UPDATE' THEN
-        -- Check if this is a return operation (return_date was NULL and is now set)
+        v_operation := 'UPDATE';
+        v_record_id := NEW.rental_id;
         IF OLD.return_date IS NULL AND NEW.return_date IS NOT NULL THEN
-            audit_details := 'Tape returned. Return date: ' || NEW.return_date;
-            
-            INSERT INTO rental_audit_log (
-                action_type, 
-                rental_id, 
-                customer_id, 
-                tape_id, 
-                movie_title, 
-                details
-            ) VALUES (
-                'RETURN', 
-                NEW.rental_id, 
-                NEW.customer_id, 
-                NEW.tape_id, 
-                movie_title, 
-                audit_details
-            );
+            v_details := 'Rental returned. Customer: ' || NEW.customer_id || ', Tape: ' || NEW.tape_id || '. Return Date: ' || NEW.return_date || '. Late Fees: ' || NEW.late_fees;
         ELSE
-            -- Other update operations
-            audit_details := 'Rental record updated';
-            
-            INSERT INTO rental_audit_log (
-                action_type, 
-                rental_id, 
-                customer_id, 
-                tape_id, 
-                movie_title, 
-                details
-            ) VALUES (
-                'UPDATE', 
-                NEW.rental_id, 
-                NEW.customer_id, 
-                NEW.tape_id, 
-                movie_title, 
-                audit_details
-            );
+            -- Could add more detail here about what changed if needed
+            v_details := 'Rental record updated for rental ID ' || NEW.rental_id;
         END IF;
-        
     ELSIF TG_OP = 'DELETE' THEN
-        -- Rental record deleted
-        audit_details := 'Rental record deleted';
-        
-        INSERT INTO rental_audit_log (
-            action_type, 
-            rental_id, 
-            customer_id, 
-            tape_id, 
-            movie_title, 
-            details
-        ) VALUES (
-            'CANCEL', 
-            OLD.rental_id, 
-            OLD.customer_id, 
-            OLD.tape_id, 
-            movie_title, 
-            audit_details
-        );
+        v_operation := 'DELETE';
+        v_record_id := OLD.rental_id;
+        v_details := 'Rental deleted/cancelled. Customer: ' || OLD.customer_id || ', Tape: ' || OLD.tape_id;
     END IF;
-    
+
+    -- Insert into the standard audit_log table
+    INSERT INTO audit_log (
+        table_name,
+        operation,
+        record_id,
+        details
+    ) VALUES (
+        'rentals',  -- The table where the operation occurred
+        v_operation,
+        v_record_id,
+        v_details
+    );
+
     -- Log message for debugging
-    RAISE NOTICE 'Rental audit log entry created: % for rental #%, tape #%, movie "%"',
-        TG_OP, COALESCE(NEW.rental_id, OLD.rental_id), COALESCE(NEW.tape_id, OLD.tape_id), movie_title;
-    
+    RAISE NOTICE 'Audit log entry created for % on rentals, record ID: %', v_operation, v_record_id;
+
     -- Return appropriate value based on operation
     IF TG_OP = 'DELETE' THEN
         RETURN OLD;
     ELSE
         RETURN NEW;
     END IF;
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Log error but don't prevent the original operation
+        RAISE WARNING 'Error in rental audit trigger: %', SQLERRM;
+        IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -139,4 +75,4 @@ FOR EACH ROW
 EXECUTE FUNCTION trg_rental_audit();
 
 -- Add a comment explaining the trigger
-COMMENT ON TRIGGER trg_rental_audit ON rentals IS 'Trigger to log all rental-related activities (rent, return, cancel) to the rental_audit_log table'; 
+COMMENT ON TRIGGER trg_rental_audit ON rentals IS 'Trigger to log all rental-related activities (INSERT, UPDATE, DELETE) to the main audit_log table'; 

@@ -1,4 +1,0 @@
- rental_id | customer_id | tape_id | rental_date | due_date | return_date | late_fees 
------------+-------------+---------+-------------+----------+-------------+-----------
-(0 rows)
-
