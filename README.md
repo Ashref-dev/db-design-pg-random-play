@@ -28,21 +28,25 @@ Random Play is a PostgreSQL-based database schema designed for managing a video 
 ## Core Features
 
 ### Customer Management
+
 - Customer profiles with contact information and rental history
 - Integrated customer activity tracking
 - Prevent accidental customer deletion with active rentals
 
 ### Inventory Management
+
 - Comprehensive tape catalog with genre classification
 - Actor database with filmography connections
 - Automatic tape availability status updates
 
 ### Rental System
+
 - Rental transaction processing and tracking
 - Late return management
 - Historical rental data for analytics
 
 ### Audit System
+
 - Comprehensive audit logging for critical operations
 - Rental activity tracking
 - Stock level monitoring
@@ -55,6 +59,14 @@ The database functionality is organized into the following packages:
 2. **pkg_rentals** - Rental transaction processing
 3. **pkg_reports** - Reporting and analytics functions
 4. **pkg_tapes** - Tape inventory management
+
+## I want to see results of the tests, don't waste my time
+
+Of course. You can see the results of the tests in the `tests/tests_result.txt` file.
+
+## I want to run the tests
+
+See the [Testing](#testing) section below for instructions on running tests.
 
 ## Getting Started
 
@@ -94,6 +106,10 @@ Execute the data scripts in numerical order to populate the database:
 ## Testing
 
 The project includes a comprehensive test suite to validate database functionality:
+
+first of all make sure you have the `psql` command-line client installed. (I included the unix systems isntructions below in the readme of the tests folder)
+
+also update the connection strign in the sh file to point to your database (or use mine xD)
 
 ```bash
 cd tests
