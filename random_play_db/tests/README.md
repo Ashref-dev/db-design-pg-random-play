@@ -4,9 +4,7 @@ This folder contains a test runner application for testing PL/SQL functions and 
 
 ## Folder Structure
 
-
 - `sql_tests/` - Contains the SQL test scripts
-  - `setup_db.sql` - Script to initialize the database schema and functions
   - `test_crud_customers.sql` - Tests for customer CRUD operations
   - `test_rental_operations.sql` - Tests for rental operations
   - `test_triggers.sql` - Tests for database triggers
@@ -14,165 +12,90 @@ This folder contains a test runner application for testing PL/SQL functions and 
   - `test_scenarios.md` - Comprehensive list of test scenarios
 - `run_all_tests.sh` - Shell script to run all tests and save results
 - `view_results.html` - HTML file to view and analyze test results
-
-## Prerequisites
-
-- PostgreSQL database with the Random Play Video Tape Store schema installed
-
-## Running Tests Directly with psql
-
-You can run the tests directly using psql command-line tool:
-
-1. **Initialize your database** with the required schema, tables, and functions:
-
-```bash
-psql -U your_username -d your_database -f sql_tests/setup_db.sql
-```
-
-2. **Run individual test files**:
-
-```bash
-# Run customer tests
-psql -U your_username -d your_database -f sql_tests/test_crud_customers.sql
-
-# Run rental tests
-psql -U your_username -d your_database -f sql_tests/test_rental_operations.sql
-
-# Run trigger tests
-psql -U your_username -d your_database -f sql_tests/test_triggers.sql
-```
-
-3. **Save test results to a file**:
-
-```bash
-# Save customer test results
-psql -U your_username -d your_database -f sql_tests/test_crud_customers.sql > results_customers.txt
-
-# Save rental test results
-psql -U your_username -d your_database -f sql_tests/test_rental_operations.sql > results_rentals.txt
-
-# Save trigger test results
-psql -U your_username -d your_database -f sql_tests/test_triggers.sql > results_triggers.txt
-```
-
-4. **Run all tests and save results in a single file**:
-
-```bash
-(
-    echo "===== CUSTOMER TESTS =====" &&
-    psql -U your_username -d your_database -f sql_tests/test_crud_customers.sql &&
-    echo -e "\n\n===== RENTAL TESTS =====" &&
-    psql -U your_username -d your_database -f sql_tests/test_rental_operations.sql &&
-    echo -e "\n\n===== TRIGGER TESTS =====" &&
-    psql -U your_username -d your_database -f sql_tests/test_triggers.sql
-) > all_test_results.txt
-```
+- `README.md` - This file
 
 ## Using the Test Runner Script
 
-For convenience, a shell script is provided to run all tests and save the results:
+A shell script is provided to run all tests against the database and save the results:
 
 1.  **Review Script Configuration:**
     *   Open `run_all_tests.sh` in a text editor.
-    *   Verify that the `CONNECTION_STRING` variable points to your target database. The current value is hardcoded for a specific Neon.tech database.
-    *   Verify that the `PSQL_PATH` variable points to the correct location of your `psql` executable.
+    *   Verify that the `CONNECTION_STRING` variable points to your target database. It is currently set to:
+        ```
+        postgresql://ashref1944:sL7pgZ4FHbYQ@ep-bitter-salad-a2fxuy5k-pooler.eu-central-1.aws.neon.tech/random-play-db?sslmode=require
+        ```
+    *   Verify that the `PSQL_PATH` variable points to the correct location of your `psql` executable (e.g., `/opt/homebrew/bin/psql`, `/usr/bin/psql`).
 
 2.  Make the script executable (if you haven't already):
 
-```bash
-chmod +x run_all_tests.sh
-```
+    ```bash
+    chmod +x run_all_tests.sh
+    ```
 
-3.  Run the script:
+3.  Run the script from the `tests` directory:
 
-```bash
-./run_all_tests.sh
-```
+    ```bash
+    ./run_all_tests.sh
+    ```
 
-4.  The results will be saved to `tests_result.txt` by default.
+4.  The script will execute all `.sql` files in the `sql_tests` directory and save the combined output to `tests_result.txt` by default.
 
-5.  To specify a different output file name, use the `-o` option:
+5.  A summary will be printed to the console, indicating the number of PASSED and FAILED tests found in the output, along with any ERRORS or EXCEPTIONS detected.
 
-```bash
-./run_all_tests.sh -o custom_results.log
-```
+    Example Summary Output:
+    ```
+    ===== TEST SUMMARY =====
+    Total Tests Run:   22
+    ----------------------
+    PASSED:            22
+    FAILED:            0
+    ERRORS/EXCEPTIONS: 0 (Check tests_result.txt for details)
+    ----------------------
+    ======================
+    ```
 
-## Viewing Test Results
+6.  To specify a different output file name, use the `-o` option:
 
-After running the tests and saving the results, you can view them using the HTML viewer:
+    ```bash
+    ./run_all_tests.sh -o custom_results.log
+    ```
 
-1. Open the `view_results.html` file in a web browser
-2. Click "Choose File" and select your test results file
-3. Use the buttons to highlight passed/failed tests and view a summary
+## Browsing the Database
 
-Features:
-- Highlight passed tests (green)
-- Highlight failed tests (red)
-- View test summary with passed/failed counts
-- List of failed tests for easy debugging
+You can connect to the database to browse tables, run queries, or manually test functions using `psql` or a GUI client.
 
-## Test Runner Web Application
+**Using `psql`:**
 
-Alternatively, you can use the included web-based test runner application:
-
-1. Install dependencies:
-
-```bash
-cd random_play_db/tests
-npm install
-```
-
-2. Start the test runner server:
+Open your terminal and use the connection string directly:
 
 ```bash
-npm start
+psql "postgresql://ashref1944:sL7pgZ4FHbYQ@ep-bitter-salad-a2fxuy5k-pooler.eu-central-1.aws.neon.tech/random-play-db?sslmode=require"
 ```
 
-3. Open your web browser and navigate to:
+Once connected, you can use standard SQL commands and `psql` meta-commands:
 
-```
-http://localhost:3000
-```
+-   `\dt`: List tables
+-   `\df`: List functions
+-   `\l`: List databases
+-   `SELECT * FROM customers LIMIT 10;`: Run a query
+-   `\q`: Quit `psql`
 
-4. In the web interface:
-   - Enter your PostgreSQL connection string
-   - Click "Connect"
-   - Once connected, you can run individual test scripts or all tests
+**Using a GUI Client (e.g., DBeaver, pgAdmin, TablePlus):**
 
-## Connection String Format
+1.  Create a new PostgreSQL connection.
+2.  Use the components of the connection string:
+    *   **Host:** `ep-bitter-salad-a2fxuy5k-pooler.eu-central-1.aws.neon.tech`
+    *   **Port:** `5432` (Default PostgreSQL port)
+    *   **Database:** `random-play-db`
+    *   **Username:** `ashref1944`
+    *   **Password:** (Enter the password associated with the user)
+    *   **SSL Mode:** `require` (or the equivalent setting in your client)
+3.  Connect and browse the schema, tables, and data.
 
-```
-postgresql://username:password@host:port/database?sslmode=require
-```
 
-Example:
-```
-postgresql://postgres:password@localhost:5432/random_play_db
-```
-
-For database hosted services like Neon.tech, make sure to include any required SSL parameters.
-
-## Test Scripts
-
-Each SQL test script contains a series of tests, executed as anonymous PL/pgSQL blocks. The tests use RAISE NOTICE to provide feedback on success or failure.
-
-- `test_crud_customers.sql` - Tests C1-C7 for customer operations
-- `test_rental_operations.sql` - Tests R1-R6 for rental operations
-- `test_triggers.sql` - Tests TG1-TG9 for database triggers
-
-See `docs/test_scenarios.md` for a complete description of all test scenarios.
-
-## Testing API
-
-You can run a basic API test to ensure the server is functioning properly:
-
-```bash
-npm run test:api
-```
 
 ## Troubleshooting
 
-- Make sure your database is running and accessible with the credentials provided
-- If tests fail with errors like "function pkg_customers.add_customer does not exist", run the setup_db.sql script
-- The SQL test scripts assume that certain tables and functions exist - make sure your database schema is correctly set up
-- Check the server console output for any errors 
+- Make sure your database is running and accessible with the credentials provided in the connection string.
+- Ensure the `psql` path in `run_all_tests.sh` is correct for your system.
+- Check the `tests_result.txt` file for detailed error messages from `psql` if the script fails or tests report errors.

@@ -27,7 +27,7 @@ BEGIN
         RAISE EXCEPTION 'Customer with ID % is not active', p_customer_id;
     END IF;
     
-    -- Check if tape exists and is available
+    -- Check if tape exists and is available (Check is also done by BEFORE trigger)
     SELECT stock_available, rental_duration_days 
     INTO v_stock_available, v_rental_duration
     FROM tapes 
@@ -37,6 +37,8 @@ BEGIN
         RAISE EXCEPTION 'Tape with ID % does not exist', p_tape_id;
     END IF;
     
+    -- Note: The BEFORE INSERT trigger trg_check_tape_availability already verifies stock > 0.
+    -- The check below is slightly redundant but provides an earlier exit if stock is 0.
     IF v_stock_available <= 0 THEN
         RAISE EXCEPTION 'Tape with ID % is not available for rental (current stock: 0)', p_tape_id;
     END IF;
@@ -45,6 +47,7 @@ BEGIN
     v_due_date := p_rental_date + (v_rental_duration || ' days')::interval;
     
     -- Create the rental record
+    -- The AFTER INSERT trigger trg_update_tape_stock will handle decrementing stock
     INSERT INTO rentals (
         customer_id,
         tape_id,
@@ -61,10 +64,10 @@ BEGIN
         0.00
     ) RETURNING rental_id INTO v_rental_id;
     
-    -- Update tape stock
-    UPDATE tapes
-    SET stock_available = stock_available - 1
-    WHERE tape_id = p_tape_id;
+    -- REMOVED: Update tape stock (Handled by AFTER INSERT trigger trg_update_tape_stock)
+    -- UPDATE tapes
+    -- SET stock_available = stock_available - 1
+    -- WHERE tape_id = p_tape_id;
     
     RETURN v_rental_id;
 EXCEPTION
@@ -106,15 +109,16 @@ BEGIN
     END IF;
     
     -- Update the rental record
+    -- The AFTER UPDATE trigger trg_update_tape_stock will handle incrementing stock
     UPDATE rentals
     SET return_date = p_return_date,
         late_fees = v_late_fees
     WHERE rental_id = p_rental_id;
     
-    -- Update tape stock
-    UPDATE tapes
-    SET stock_available = stock_available + 1
-    WHERE tape_id = v_tape_id;
+    -- REMOVED: Update tape stock (Handled by AFTER UPDATE trigger trg_update_tape_stock)
+    -- UPDATE tapes
+    -- SET stock_available = stock_available + 1
+    -- WHERE tape_id = v_tape_id;
     
     RETURN p_return_date;
 EXCEPTION

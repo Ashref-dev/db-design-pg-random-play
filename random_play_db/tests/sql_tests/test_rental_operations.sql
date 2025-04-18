@@ -11,12 +11,13 @@ DECLARE
     v_rental_id INTEGER;
     v_stock_before INTEGER;
     v_stock_after INTEGER;
+    v_unique_email TEXT := 'rental.happypath.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test R1: Rent a tape to a customer (happy path)';
+    RAISE NOTICE 'Test R1: Rent a tape to a customer (happy path) (Email: %)', v_unique_email;
     
-    -- Create a test customer
+    -- Create a test customer with unique email
     SELECT pkg_customers.add_customer(
-        'RentalTest', 'HappyPath', 'rental.happypath@example.com', 
+        'RentalTest', 'HappyPath', v_unique_email, 
         '555-HAPPY', '123 Rental Ln, Testville'
     ) INTO v_customer_id;
     
@@ -55,7 +56,8 @@ BEGIN
     RAISE NOTICE 'Test R1 PASSED: Successfully created rental with ID %', v_rental_id;
     RAISE NOTICE 'Customer ID: %, Tape ID: %', v_customer_id, v_tape_id;
     
-    -- Clean up - keep for next tests
+    -- Clean up - return tape. Cannot delete customer due to history check.
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id;
 EXCEPTION
     WHEN OTHERS THEN
         RAISE NOTICE 'Test R1 FAILED with error: %', SQLERRM;
@@ -71,43 +73,47 @@ DECLARE
     v_tape_id INTEGER;
     v_rental_id INTEGER;
     v_error BOOLEAN := FALSE;
+    v_unique_email TEXT := 'rental.zerostock.' || clock_timestamp()::text || '@example.com';
+    v_created_tape BOOLEAN := FALSE;
+    v_initial_stock INTEGER;
 BEGIN
-    RAISE NOTICE 'Test R2: Attempt to rent a tape with zero stock available (should fail)';
+    RAISE NOTICE 'Test R2: Attempt to rent a tape with zero stock available (should fail) (Email: %)', v_unique_email;
     
-    -- Get customer ID from previous test
-    SELECT customer_id INTO v_customer_id
-    FROM customers
-    WHERE email = 'rental.happypath@example.com';
-    
-    IF v_customer_id IS NULL THEN
-        -- Create a test customer if not found
-        SELECT pkg_customers.add_customer(
-            'RentalTest', 'ZeroStock', 'rental.zerostock@example.com', 
-            '555-ZERO', '123 Zero St, Testville'
-        ) INTO v_customer_id;
-    END IF;
-    
-    -- Find or create a tape with zero stock
-    SELECT tape_id INTO v_tape_id
+    -- Create a unique test customer 
+    v_customer_id := pkg_customers.add_customer(
+        'RentalTest', 'ZeroStock', v_unique_email, 
+        '555-ZERO', '123 Zero St, Testville'
+    );
+
+    -- Find or create a tape and ensure its stock is 0
+    SELECT tape_id, stock_available INTO v_tape_id, v_initial_stock
     FROM tapes
     WHERE stock_available = 0
     LIMIT 1;
     
     IF v_tape_id IS NULL THEN
-        -- If no tape with zero stock, create one by renting all available copies
-        SELECT tape_id INTO v_tape_id
+        -- If no tape with zero stock, find one with stock > 0 to modify
+        SELECT tape_id, stock_available INTO v_tape_id, v_initial_stock
         FROM tapes
-        WHERE stock_available = 1
+        WHERE stock_available > 0
         LIMIT 1;
         
         IF v_tape_id IS NULL THEN
-            RAISE EXCEPTION 'Test R2 FAILED: Test setup issue - cannot find suitable tape';
+             -- If still no tape, create one (should ideally not happen with seed data)
+            INSERT INTO tapes (title, genre_id, release_year, rental_price, stock_available, total_stock)
+            VALUES ('ZeroStock Test Tape R2', (SELECT genre_id FROM genres LIMIT 1), 2024, 1.99, 0, 1)
+            RETURNING tape_id INTO v_tape_id;
+            v_initial_stock := 0; -- Set explicitly as we created it with 0
+            v_created_tape := TRUE;
+        ELSE
+             -- Set existing tape stock to 0 for the test
+            UPDATE tapes SET stock_available = 0 WHERE tape_id = v_tape_id;
+            v_created_tape := FALSE;
         END IF;
-        
-        -- Rent the last available copy
-        PERFORM pkg_rentals.rent_tape(v_customer_id, v_tape_id);
+    ELSE
+        v_created_tape := FALSE; -- Found an existing tape with 0 stock
     END IF;
-    
+
     -- Now try to rent the out-of-stock tape
     BEGIN
         SELECT pkg_rentals.rent_tape(v_customer_id, v_tape_id) INTO v_rental_id;
@@ -124,6 +130,14 @@ BEGIN
     IF NOT v_error THEN
         RAISE EXCEPTION 'Test R2 FAILED: Expected an error but none occurred';
     END IF;
+
+    -- Clean up: Reset stock if we modified an existing tape, delete customer, delete tape if created
+    IF NOT v_created_tape AND v_tape_id IS NOT NULL THEN
+         UPDATE tapes SET stock_available = v_initial_stock WHERE tape_id = v_tape_id; -- Restore original stock
+    ELSIF v_created_tape AND v_tape_id IS NOT NULL THEN
+         DELETE FROM tapes WHERE tape_id = v_tape_id;
+    END IF;
+    PERFORM pkg_customers.delete_customer(v_customer_id);
 END;
 $$;
 
@@ -138,21 +152,15 @@ DECLARE
     v_return_date TIMESTAMP;
     v_stock_before INTEGER;
     v_stock_after INTEGER;
+    v_unique_email TEXT := 'rental.return.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test R3: Return a tape (on time)';
+    RAISE NOTICE 'Test R3: Return a tape (on time) (Email: %)', v_unique_email;
     
-    -- Get customer ID from previous tests
-    SELECT customer_id INTO v_customer_id
-    FROM customers
-    WHERE email = 'rental.happypath@example.com';
-    
-    IF v_customer_id IS NULL THEN
-        -- Create a test customer if not found
-        SELECT pkg_customers.add_customer(
-            'RentalTest', 'Return', 'rental.return@example.com', 
-            '555-RETURN', '123 Return St, Testville'
-        ) INTO v_customer_id;
-    END IF;
+    -- Create a unique test customer
+    v_customer_id := pkg_customers.add_customer(
+        'RentalTest', 'Return', v_unique_email, 
+        '555-RETURN', '123 Return St, Testville'
+    );
     
     -- Get an available tape
     SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
@@ -206,6 +214,9 @@ BEGIN
     END IF;
     
     RAISE NOTICE 'Test R3 PASSED: Successfully returned tape with return date %', v_return_date;
+
+    -- Clean up - Cannot delete customer due to history check.
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed
 END;
 $$;
 
@@ -219,14 +230,15 @@ DECLARE
     v_rental_id INTEGER;
     v_return_date TIMESTAMP;
     v_late_fees NUMERIC(5,2);
+    v_unique_email TEXT := 'latefee.customer.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test R4: Return a tape (late, with late fees)';
+    RAISE NOTICE 'Test R4: Return a tape (late, with late fees) (Email: %)', v_unique_email;
     
-    -- Create a test customer
-    SELECT pkg_customers.add_customer(
-        'LateFee', 'Customer', 'latefee.customer@example.com', 
+    -- Create a test customer with unique email
+    v_customer_id := pkg_customers.add_customer(
+        'LateFee', 'Customer', v_unique_email, 
         '555-LATE', '456 Late Fee Rd, Testville'
-    ) INTO v_customer_id;
+    );
     
     -- Get an available tape
     SELECT tape_id INTO v_tape_id
@@ -269,6 +281,9 @@ BEGIN
     END IF;
     
     RAISE NOTICE 'Test R4 PASSED: Successfully returned late tape with late fees of %', v_late_fees;
+
+    -- Clean up (Cannot delete customer due to history check in delete_customer)
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed
 END;
 $$;
 
@@ -282,14 +297,15 @@ DECLARE
     v_rental_id INTEGER;
     v_late_fees NUMERIC(5,2);
     v_calculated_fees NUMERIC(5,2);
+    v_unique_email TEXT := 'calcfee.customer.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test R5: Calculate late fees for an overdue rental';
+    RAISE NOTICE 'Test R5: Calculate late fees for an overdue rental (Email: %)', v_unique_email;
     
-    -- Create a test customer
-    SELECT pkg_customers.add_customer(
-        'CalcFee', 'Customer', 'calcfee.customer@example.com', 
+    -- Create a test customer with unique email
+    v_customer_id := pkg_customers.add_customer(
+        'CalcFee', 'Customer', v_unique_email, 
         '555-CALC', '789 Calc Fee Ave, Testville'
-    ) INTO v_customer_id;
+    );
     
     -- Get an available tape
     SELECT tape_id INTO v_tape_id
@@ -339,6 +355,9 @@ BEGIN
     END IF;
     
     RAISE NOTICE 'Test R5 PASSED: Successfully calculated late fees of %', v_calculated_fees;
+
+    -- Clean up (Cannot delete customer due to history check in delete_customer)
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed
 END;
 $$;
 
@@ -353,14 +372,15 @@ DECLARE
     v_due_date TIMESTAMP;
     v_new_due_date TIMESTAMP;
     v_extension_days INTEGER := 5;
+    v_unique_email TEXT := 'extend.customer.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test R6: Extend a rental period';
+    RAISE NOTICE 'Test R6: Extend a rental period (Email: %)', v_unique_email;
     
-    -- Create a test customer
-    SELECT pkg_customers.add_customer(
-        'Extend', 'Customer', 'extend.customer@example.com', 
+    -- Create a test customer with unique email
+    v_customer_id := pkg_customers.add_customer(
+        'Extend', 'Customer', v_unique_email, 
         '555-EXTEND', '101 Extension Blvd, Testville'
-    ) INTO v_customer_id;
+    );
     
     -- Get an available tape
     SELECT tape_id INTO v_tape_id
@@ -405,5 +425,9 @@ BEGIN
     
     RAISE NOTICE 'Test R6 PASSED: Successfully extended rental due date from % to %', 
         v_due_date, v_new_due_date;
+
+    -- Clean up
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id; -- Return tape before deleting customer
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed: Cannot delete customer due to history check
 END;
 $$; 

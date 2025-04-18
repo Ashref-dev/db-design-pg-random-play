@@ -10,15 +10,16 @@ DECLARE
     v_tape_id INTEGER;
     v_stock_before INTEGER;
     v_stock_after INTEGER;
+    v_unique_email TEXT := 'trigger.test1.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test TG1: Verify tape stock decreases when rented';
+    RAISE NOTICE 'Test TG1: Verify tape stock decreases when rented (Email: %)', v_unique_email;
     
-    -- Create a test customer
+    -- Create a test customer with unique email
     INSERT INTO customers (
         first_name, last_name, email, phone, address, registration_date, active
     ) VALUES (
-        'Trigger', 'TestUser', 'trigger.test@example.com', 
-        '555-TRIGGER', '123 Trigger St, Testville', CURRENT_DATE, TRUE
+        'Trigger', 'TestUser1', v_unique_email, 
+        '555-TRIGGER1', '123 Trigger1 St, Testville', CURRENT_DATE, TRUE
     ) RETURNING customer_id INTO v_customer_id;
     
     -- Get an available tape
@@ -53,7 +54,8 @@ BEGIN
     
     RAISE NOTICE 'Test TG1 PASSED: Stock correctly decreased from % to %', v_stock_before, v_stock_after;
     
-    -- Keep everything for next tests
+    -- Clean up
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE customer_id = v_customer_id AND tape_id = v_tape_id AND return_date IS NULL; -- Return the specific rental
 END;
 $$;
 
@@ -67,22 +69,15 @@ DECLARE
     v_rental_id INTEGER;
     v_stock_before INTEGER;
     v_stock_after INTEGER;
+    v_unique_email TEXT := 'trigger.return.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test TG2: Verify tape stock increases when returned';
+    RAISE NOTICE 'Test TG2: Verify tape stock increases when returned (Email: %)', v_unique_email;
     
-    -- Get the test customer ID
-    SELECT customer_id INTO v_customer_id
-    FROM customers
-    WHERE email = 'trigger.test@example.com';
-    
-    IF v_customer_id IS NULL THEN
-        INSERT INTO customers (
-            first_name, last_name, email, phone, address, registration_date, active
-        ) VALUES (
-            'Trigger', 'Return', 'trigger.return@example.com', 
-            '555-RETURN', '123 Return St, Testville', CURRENT_DATE, TRUE
-        ) RETURNING customer_id INTO v_customer_id;
-    END IF;
+    -- Create unique customer for this test
+    v_customer_id := pkg_customers.add_customer(
+        'Trigger', 'Return', v_unique_email, 
+        '555-RETURN', '123 Return St, Testville'
+    );
     
     -- Get an available tape
     SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
@@ -125,6 +120,9 @@ BEGIN
     END IF;
     
     RAISE NOTICE 'Test TG2 PASSED: Stock correctly increased from % to %', v_stock_before, v_stock_after;
+
+    -- Clean up
+    -- DELETE FROM customers WHERE customer_id = v_customer_id; -- Removed: Fails due to FK, and delete_customer might fail due to history
 END;
 $$;
 
@@ -138,22 +136,15 @@ DECLARE
     v_rental_id INTEGER;
     v_stock_before INTEGER;
     v_stock_after INTEGER;
+    v_unique_email TEXT := 'trigger.nochange.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test TG3: Verify tape stock remains unchanged when rental is updated (without return)';
+    RAISE NOTICE 'Test TG3: Verify tape stock remains unchanged when rental update (Email: %)', v_unique_email;
     
-    -- Get the test customer ID or create new one
-    SELECT customer_id INTO v_customer_id
-    FROM customers
-    WHERE email = 'trigger.test@example.com';
-    
-    IF v_customer_id IS NULL THEN
-        INSERT INTO customers (
-            first_name, last_name, email, phone, address, registration_date, active
-        ) VALUES (
-            'Trigger', 'NoChange', 'trigger.nochange@example.com', 
-            '555-NOCHANGE', '123 NoChange St, Testville', CURRENT_DATE, TRUE
-        ) RETURNING customer_id INTO v_customer_id;
-    END IF;
+    -- Create unique customer for this test
+    v_customer_id := pkg_customers.add_customer(
+        'Trigger', 'NoChange', v_unique_email, 
+        '555-NOCHANGE', '123 NoChange St, Testville'
+    );
     
     -- Get an available tape
     SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
@@ -198,9 +189,7 @@ BEGIN
     RAISE NOTICE 'Test TG3 PASSED: Stock correctly remained at % after rental update', v_stock_after;
     
     -- Clean up - return the tape
-    UPDATE rentals
-    SET return_date = CURRENT_TIMESTAMP
-    WHERE rental_id = v_rental_id;
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id;
 END;
 $$;
 
@@ -213,14 +202,15 @@ DECLARE
     v_tape_id INTEGER;
     v_rental_id INTEGER;
     v_error BOOLEAN := FALSE;
+    v_unique_email TEXT := 'delete.test.' || clock_timestamp()::text || '@example.com';
 BEGIN
-    RAISE NOTICE 'Test TG4: Verify prevention of customer deletion with active rentals';
+    RAISE NOTICE 'Test TG4: Verify prevention of customer deletion with active rentals (Email: %)', v_unique_email;
     
-    -- Create a new test customer specifically for this test
+    -- Create a new test customer specifically for this test with unique email
     INSERT INTO customers (
         first_name, last_name, email, phone, address, registration_date, active
     ) VALUES (
-        'DeleteTest', 'Customer', 'delete.test@example.com', 
+        'DeleteTest', 'Customer', v_unique_email, 
         '555-DELETE', '123 Delete St, Testville', CURRENT_DATE, TRUE
     ) RETURNING customer_id INTO v_customer_id;
     
@@ -268,11 +258,7 @@ BEGIN
     END IF;
     
     -- Clean up - return the tape
-    UPDATE rentals
-    SET return_date = CURRENT_TIMESTAMP
-    WHERE rental_id = v_rental_id;
-    
-    -- Now deletion should be possible, but we don't test it here.
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id;
 END;
 $$;
 
