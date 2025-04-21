@@ -1,0 +1,1267 @@
+====================================================
+  RANDOM PLAY VIDEO TAPE STORE - TEST RESULTS
+  2025-04-21 21:06:43
+====================================================
+
+===== CUSTOMER TESTS =====
+-- Test script for Customer CRUD operations
+-- Tests: C1, C2, C3, C4, C5, C6, C7
+-- =============================================
+-- Test C1: Create a new customer with valid information
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_result RECORD;
+    v_unique_email TEXT := 'john.test.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test C1: Create a new customer with valid information (Email: %)', v_unique_email;
+    
+    SELECT pkg_customers.add_customer(
+        'John', 'TestUser', v_unique_email,
+        '555-123-4567', '123 Test St, Testville'
+    ) INTO v_customer_id;
+    
+    IF v_customer_id IS NULL OR v_customer_id <= 0 THEN
+        RAISE EXCEPTION 'Test C1 FAILED: Customer creation did not return a valid ID. Got: %', v_customer_id;
+    END IF;
+    
+    -- Verify the customer was actually created
+    SELECT * INTO v_result 
+    FROM customers 
+    WHERE customer_id = v_customer_id;
+    
+    IF v_result.customer_id IS NULL THEN
+        RAISE EXCEPTION 'Test C1 FAILED: Customer with ID % not found after creation', v_customer_id;
+    END IF;
+    
+    IF v_result.email <> v_unique_email THEN
+        RAISE EXCEPTION 'Test C1 FAILED: Email mismatch. Expected: %, Got: %', v_unique_email, v_result.email;
+    END IF;
+    
+    RAISE NOTICE 'Test C1 PASSED: Successfully created customer with ID %', v_customer_id;
+    RAISE NOTICE 'Customer details: % % (Email: %)', v_result.first_name, v_result.last_name, v_result.email;
+    
+    -- No explicit cleanup needed, let subsequent tests create their own data
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Test C1 FAILED with error: %', SQLERRM;
+END;
+$$;
+psql:sql_tests/test_crud_customers.sql:45: NOTICE:  Test C1: Create a new customer with valid information (Email: john.test.2025-04-21 20:06:45.0819+00@example.com)
+psql:sql_tests/test_crud_customers.sql:45: NOTICE:  Test C1 PASSED: Successfully created customer with ID 369
+psql:sql_tests/test_crud_customers.sql:45: NOTICE:  Customer details: John TestUser (Email: john.test.2025-04-21 20:06:45.0819+00@example.com)
+DO
+-- =============================================
+-- Test C2: Attempt to create a customer with duplicate email (should fail)
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_error BOOLEAN := FALSE;
+    v_existing_customer_id INTEGER;
+    v_duplicate_email TEXT := 'duplicate.test.' || clock_timestamp()::text || '@example.com'; -- Unique base email
+BEGIN
+    RAISE NOTICE 'Test C2: Attempt to create a customer with duplicate email (should fail)';
+    
+    -- First, create a customer to ensure an email exists for duplication attempt
+    v_existing_customer_id := pkg_customers.add_customer('Original', 'User', v_duplicate_email, '111-DUP', 'Addr');
+
+    BEGIN
+        -- Try to create another customer with the exact same unique email
+        SELECT pkg_customers.add_customer(
+            'Jane', 'DuplicateEmail', v_duplicate_email, -- Use the same unique email
+            '555-987-6543', '456 Test Ave, Testville'
+        ) INTO v_customer_id;
+        
+        -- If we get here, the function didn't raise an exception as expected
+        RAISE EXCEPTION 'Test C2 FAILED: Customer creation with duplicate email should have failed but didn''t';
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- This is expected behavior - the exception should be caught
+            v_error := TRUE;
+            RAISE NOTICE 'Test C2 PASSED: Received expected error: %', SQLERRM;
+    END;
+    
+    IF NOT v_error THEN
+        RAISE EXCEPTION 'Test C2 FAILED: Expected an error but none occurred';
+    END IF;
+
+    -- Clean up the original customer created for this test
+    DELETE FROM customers WHERE customer_id = v_existing_customer_id;
+END;
+$$;
+psql:sql_tests/test_crud_customers.sql:85: NOTICE:  Test C2: Attempt to create a customer with duplicate email (should fail)
+psql:sql_tests/test_crud_customers.sql:85: NOTICE:  Test C2 PASSED: Received expected error: A customer with email duplicate.test.2025-04-21 20:06:45.222716+00@example.com already exists
+DO
+-- =============================================
+-- Test C3: Retrieve a customer by ID
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_result RECORD;
+    v_unique_email TEXT := 'getbyid.test.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test C3: Retrieve a customer by ID';
+    
+    -- Create a customer specifically for this test
+    v_customer_id := pkg_customers.add_customer('GetById', 'Test', v_unique_email, '333-GETID', 'Addr C3');
+    
+    IF v_customer_id IS NULL THEN
+        RAISE EXCEPTION 'Test C3 FAILED: Test setup issue - could not create test customer';
+    END IF;
+    
+    -- Retrieve the customer using the package function
+    SELECT * INTO v_result 
+    FROM pkg_customers.get_customer(v_customer_id);
+    
+    IF v_result.customer_id IS NULL THEN
+        RAISE EXCEPTION 'Test C3 FAILED: Customer retrieval returned no results for ID %', v_customer_id;
+    END IF;
+    
+    IF v_result.email <> v_unique_email THEN
+        RAISE EXCEPTION 'Test C3 FAILED: Retrieved customer has wrong email. Expected: %, Got: %', v_unique_email, v_result.email;
+    END IF;
+    
+    RAISE NOTICE 'Test C3 PASSED: Successfully retrieved customer with ID %', v_customer_id;
+    RAISE NOTICE 'Customer details: % % (Email: %)', v_result.first_name, v_result.last_name, v_result.email;
+
+    -- Clean up
+    DELETE FROM customers WHERE customer_id = v_customer_id;
+END;
+$$;
+psql:sql_tests/test_crud_customers.sql:123: NOTICE:  Test C3: Retrieve a customer by ID
+psql:sql_tests/test_crud_customers.sql:123: NOTICE:  Test C3 PASSED: Successfully retrieved customer with ID 372
+psql:sql_tests/test_crud_customers.sql:123: NOTICE:  Customer details: GetById Test (Email: getbyid.test.2025-04-21 20:06:45.308354+00@example.com)
+DO
+-- =============================================
+-- Test C4: Retrieve a customer by email
+-- =============================================
+DO $$
+DECLARE
+    v_result RECORD;
+    v_customer_id INTEGER;
+    v_unique_email TEXT := 'getbyemail.test.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test C4: Retrieve a customer by email';
+    
+    -- Create a customer specifically for this test
+    v_customer_id := pkg_customers.add_customer('GetByEmail', 'Test', v_unique_email, '444-GETEMAIL', 'Addr C4');
+
+    -- Retrieve the customer by email using the package function
+    SELECT * INTO v_result 
+    FROM pkg_customers.get_customer_by_email(v_unique_email);
+    
+    IF v_result.customer_id IS NULL THEN
+        RAISE EXCEPTION 'Test C4 FAILED: Customer retrieval by email returned no results';
+    END IF;
+    
+    IF v_result.first_name <> 'GetByEmail' OR v_result.last_name <> 'Test' THEN -- Updated expected name
+        RAISE EXCEPTION 'Test C4 FAILED: Retrieved customer has wrong name. Expected: GetByEmail Test, Got: % %', 
+            v_result.first_name, v_result.last_name;
+    END IF;
+    
+    RAISE NOTICE 'Test C4 PASSED: Successfully retrieved customer by email';
+    RAISE NOTICE 'Customer details: ID %, % % (Email: %)', 
+        v_result.customer_id, v_result.first_name, v_result.last_name, v_result.email;
+
+    -- Clean up
+    DELETE FROM customers WHERE customer_id = v_customer_id;
+END;
+$$;
+psql:sql_tests/test_crud_customers.sql:159: NOTICE:  Test C4: Retrieve a customer by email
+psql:sql_tests/test_crud_customers.sql:159: NOTICE:  Test C4 PASSED: Successfully retrieved customer by email
+psql:sql_tests/test_crud_customers.sql:159: NOTICE:  Customer details: ID 373, GetByEmail Test (Email: getbyemail.test.2025-04-21 20:06:45.381037+00@example.com)
+DO
+-- =============================================
+-- Test C5: Update a customer's contact information
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_success BOOLEAN;
+    v_result RECORD;
+    v_initial_email TEXT := 'update.initial.' || clock_timestamp()::text || '@example.com';
+    v_updated_email TEXT := 'update.final.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test C5: Update a customer''s contact information';
+    
+    -- Create a customer specifically for this test
+    v_customer_id := pkg_customers.add_customer('Update', 'InitialName', v_initial_email, '555-UPDATE', 'Initial Addr C5');
+
+    IF v_customer_id IS NULL THEN
+        RAISE EXCEPTION 'Test C5 FAILED: Test setup issue - could not create test customer';
+    END IF;
+    
+    -- Update the customer's information using the unique ID and a new unique email
+    SELECT pkg_customers.update_customer(
+        v_customer_id,
+        'Update', -- Keep first name same
+        'UpdatedLastName',
+        v_updated_email, -- Use the new unique email
+        '555-999-8888',
+        '789 Updated St, New City',
+        TRUE
+    ) INTO v_success;
+    
+    IF NOT v_success THEN
+        RAISE EXCEPTION 'Test C5 FAILED: Customer update returned failure';
+    END IF;
+    
+    -- Verify the changes
+    SELECT * INTO v_result 
+    FROM customers 
+    WHERE customer_id = v_customer_id;
+    
+    IF v_result.last_name <> 'UpdatedLastName' OR v_result.email <> v_updated_email THEN
+        RAISE EXCEPTION 'Test C5 FAILED: Customer update didn''t apply correctly. Last name: %, Email: %', 
+            v_result.last_name, v_result.email;
+    END IF;
+    
+    RAISE NOTICE 'Test C5 PASSED: Successfully updated customer information';
+    RAISE NOTICE 'Updated customer details: % % (Email: %, Phone: %)', 
+        v_result.first_name, v_result.last_name, v_result.email, v_result.phone;
+
+    -- Clean up
+    DELETE FROM customers WHERE customer_id = v_customer_id;
+END;
+$$;
+psql:sql_tests/test_crud_customers.sql:213: NOTICE:  Test C5: Update a customer's contact information
+psql:sql_tests/test_crud_customers.sql:213: NOTICE:  Test C5 PASSED: Successfully updated customer information
+psql:sql_tests/test_crud_customers.sql:213: NOTICE:  Updated customer details: Update UpdatedLastName (Email: update.final.2025-04-21 20:06:45.446991+00@example.com, Phone: 555-999-8888)
+DO
+-- =============================================
+-- Test C6: Delete a customer with no rental history
+-- =============================================
+DO $$
+DECLARE
+    v_new_customer_id INTEGER;
+    v_success BOOLEAN;
+    v_exists BOOLEAN;
+    v_unique_email TEXT := 'delete.test.' || clock_timestamp()::text || '@example.com'; -- Using unique email
+BEGIN
+    RAISE NOTICE 'Test C6: Delete a customer with no rental history (Email: %)', v_unique_email;
+    
+    -- First create a fresh test customer with unique email
+    SELECT pkg_customers.add_customer(
+        'DeleteTest', 'Customer', v_unique_email, 
+        '555-DELETE', '999 Delete Lane, Testville'
+    ) INTO v_new_customer_id;
+    
+    IF v_new_customer_id IS NULL OR v_new_customer_id <= 0 THEN
+        RAISE EXCEPTION 'Test C6 FAILED: Test setup issue - could not create test customer for deletion';
+    END IF;
+    
+    -- Now delete the customer
+    SELECT pkg_customers.delete_customer(v_new_customer_id) INTO v_success;
+    
+    IF NOT v_success THEN
+        RAISE EXCEPTION 'Test C6 FAILED: Customer deletion returned failure for ID %', v_new_customer_id;
+    END IF;
+    
+    -- Verify the customer no longer exists
+    SELECT EXISTS(SELECT 1 FROM customers WHERE customer_id = v_new_customer_id) INTO v_exists;
+    
+    IF v_exists THEN
+        RAISE EXCEPTION 'Test C6 FAILED: Customer still exists after deletion, ID %', v_new_customer_id;
+    END IF;
+    
+    RAISE NOTICE 'Test C6 PASSED: Successfully deleted customer with ID %', v_new_customer_id;
+    -- No cleanup needed as the customer is deleted
+END;
+$$;
+psql:sql_tests/test_crud_customers.sql:254: NOTICE:  Test C6: Delete a customer with no rental history (Email: delete.test.2025-04-21 20:06:45.515517+00@example.com)
+psql:sql_tests/test_crud_customers.sql:254: NOTICE:  Test C6 PASSED: Successfully deleted customer with ID 375
+DO
+-- =============================================
+-- Test C7: Attempt to delete a customer with active rentals (should fail)
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_error BOOLEAN := FALSE;
+    v_unique_email TEXT := 'jane.active.' || clock_timestamp()::text || '@example.com'; -- Unique email
+BEGIN
+    RAISE NOTICE 'Test C7: Attempt to delete a customer with active rentals (should fail) (Email: %)', v_unique_email;
+    
+    -- Create a test customer with unique email
+    INSERT INTO customers (first_name, last_name, email, phone, address)
+    VALUES ('Jane', 'ActiveRental', v_unique_email, '555-888-7777', '123 Rental St C7') -- Use unique email
+    RETURNING customer_id INTO v_customer_id;
+    
+    -- Create a test tape
+    INSERT INTO tapes (title, genre_id, release_year, rental_price, stock_available, total_stock)
+    VALUES ('Active Rental Tape C7', (SELECT genre_id FROM genres LIMIT 1), 2024, 4.99, 5, 5)
+    RETURNING tape_id INTO v_tape_id;
+    
+    -- Create a rental for this customer
+    INSERT INTO rentals (customer_id, tape_id, rental_date, due_date)
+    VALUES (v_customer_id, v_tape_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '7 days')
+    RETURNING rental_id INTO v_rental_id;
+    
+    -- Attempt to delete the customer - should fail because of active rental
+    BEGIN
+        PERFORM pkg_customers.delete_customer(v_customer_id);
+        
+        -- If we get here, the function didn't raise an exception as expected
+        RAISE EXCEPTION 'Test C7 FAILED: Customer deletion with active rentals should have failed but didn''t';
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- This is expected behavior - the exception should be caught
+            v_error := TRUE;
+            RAISE NOTICE 'Test C7 PASSED: Received expected error: %', SQLERRM;
+    END;
+    
+    IF NOT v_error THEN
+        RAISE EXCEPTION 'Test C7 FAILED: Expected an error but none occurred';
+    END IF;
+    
+    -- Clean up (Return tape first. Cannot delete customer or tape due to history/FK constraints)
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id;
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed: delete_customer prevents deletion due to history
+    -- DELETE FROM tapes WHERE tape_id = v_tape_id; -- Removed: Fails due to FK constraint
+END;
+$$; 
+psql:sql_tests/test_crud_customers.sql:306: NOTICE:  Test C7: Attempt to delete a customer with active rentals (should fail) (Email: jane.active.2025-04-21 20:06:45.594045+00@example.com)
+psql:sql_tests/test_crud_customers.sql:306: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 247
+psql:sql_tests/test_crud_customers.sql:306: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 54 after rental.
+psql:sql_tests/test_crud_customers.sql:306: NOTICE:  Test C7 PASSED: Received expected error: Error deleting customer: Cannot delete customer with ID 376 as they have 1 active rentals
+psql:sql_tests/test_crud_customers.sql:306: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 247
+psql:sql_tests/test_crud_customers.sql:306: NOTICE:  Tape stock updated: Increased stock_available for tape ID 54 after return.
+DO
+
+===== RENTAL TESTS =====
+-- Test script for Rental Operations
+-- Tests: R1, R2, R3, R4, R5, R6
+-- =============================================
+-- Test R1: Rent a tape to a customer (happy path)
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_stock_before INTEGER;
+    v_stock_after INTEGER;
+    v_unique_email TEXT := 'rental.happypath.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test R1: Rent a tape to a customer (happy path) (Email: %)', v_unique_email;
+    
+    -- Create a test customer with unique email
+    SELECT pkg_customers.add_customer(
+        'RentalTest', 'HappyPath', v_unique_email, 
+        '555-HAPPY', '123 Rental Ln, Testville'
+    ) INTO v_customer_id;
+    
+    -- Get an available tape
+    SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test R1 FAILED: Test setup issue - no tapes available for rental';
+    END IF;
+    
+    -- Rent the tape
+    SELECT pkg_rentals.rent_tape(v_customer_id, v_tape_id) INTO v_rental_id;
+    
+    IF v_rental_id IS NULL OR v_rental_id <= 0 THEN
+        RAISE EXCEPTION 'Test R1 FAILED: Rental creation did not return a valid ID. Got: %', v_rental_id;
+    END IF;
+    
+    -- Verify the rental was created
+    IF NOT EXISTS (SELECT 1 FROM rentals WHERE rental_id = v_rental_id) THEN
+        RAISE EXCEPTION 'Test R1 FAILED: Rental with ID % not found after creation', v_rental_id;
+    END IF;
+    
+    -- Check if stock was updated
+    SELECT stock_available INTO v_stock_after
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    IF v_stock_after <> (v_stock_before - 1) THEN
+        RAISE NOTICE 'Warning: Stock was not decremented as expected. Before: %, After: %', 
+            v_stock_before, v_stock_after;
+    END IF;
+    
+    RAISE NOTICE 'Test R1 PASSED: Successfully created rental with ID %', v_rental_id;
+    RAISE NOTICE 'Customer ID: %, Tape ID: %', v_customer_id, v_tape_id;
+    
+    -- Clean up - return tape. Cannot delete customer due to history check.
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id;
+EXCEPTION
+    WHEN OTHERS THEN
+        RAISE NOTICE 'Test R1 FAILED with error: %', SQLERRM;
+END;
+$$;
+psql:sql_tests/test_rental_operations.sql:65: NOTICE:  Test R1: Rent a tape to a customer (happy path) (Email: rental.happypath.2025-04-21 20:06:46.080095+00@example.com)
+psql:sql_tests/test_rental_operations.sql:65: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 248
+psql:sql_tests/test_rental_operations.sql:65: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 2 after rental.
+psql:sql_tests/test_rental_operations.sql:65: NOTICE:  Test R1 PASSED: Successfully created rental with ID 248
+psql:sql_tests/test_rental_operations.sql:65: NOTICE:  Customer ID: 377, Tape ID: 2
+psql:sql_tests/test_rental_operations.sql:65: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 248
+psql:sql_tests/test_rental_operations.sql:65: NOTICE:  Tape stock updated: Increased stock_available for tape ID 2 after return.
+DO
+-- =============================================
+-- Test R2: Attempt to rent a tape with zero stock available (should fail)
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_error BOOLEAN := FALSE;
+    v_unique_email TEXT := 'rental.zerostock.' || clock_timestamp()::text || '@example.com';
+    v_created_tape BOOLEAN := FALSE;
+    v_initial_stock INTEGER;
+BEGIN
+    RAISE NOTICE 'Test R2: Attempt to rent a tape with zero stock available (should fail) (Email: %)', v_unique_email;
+    
+    -- Create a unique test customer 
+    v_customer_id := pkg_customers.add_customer(
+        'RentalTest', 'ZeroStock', v_unique_email, 
+        '555-ZERO', '123 Zero St, Testville'
+    );
+
+    -- Find or create a tape and ensure its stock is 0
+    SELECT tape_id, stock_available INTO v_tape_id, v_initial_stock
+    FROM tapes
+    WHERE stock_available = 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        -- If no tape with zero stock, find one with stock > 0 to modify
+        SELECT tape_id, stock_available INTO v_tape_id, v_initial_stock
+        FROM tapes
+        WHERE stock_available > 0
+        LIMIT 1;
+        
+        IF v_tape_id IS NULL THEN
+             -- If still no tape, create one (should ideally not happen with seed data)
+            INSERT INTO tapes (title, genre_id, release_year, rental_price, stock_available, total_stock)
+            VALUES ('ZeroStock Test Tape R2', (SELECT genre_id FROM genres LIMIT 1), 2024, 1.99, 0, 1)
+            RETURNING tape_id INTO v_tape_id;
+            v_initial_stock := 0; -- Set explicitly as we created it with 0
+            v_created_tape := TRUE;
+        ELSE
+             -- Set existing tape stock to 0 for the test
+            UPDATE tapes SET stock_available = 0 WHERE tape_id = v_tape_id;
+            v_created_tape := FALSE;
+        END IF;
+    ELSE
+        v_created_tape := FALSE; -- Found an existing tape with 0 stock
+    END IF;
+
+    -- Now try to rent the out-of-stock tape
+    BEGIN
+        SELECT pkg_rentals.rent_tape(v_customer_id, v_tape_id) INTO v_rental_id;
+        
+        -- If we get here, the function didn't raise an exception as expected
+        RAISE EXCEPTION 'Test R2 FAILED: Rental of out-of-stock tape should have failed but didn''t';
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- This is expected behavior - the exception should be caught
+            v_error := TRUE;
+            RAISE NOTICE 'Test R2 PASSED: Received expected error: %', SQLERRM;
+    END;
+    
+    IF NOT v_error THEN
+        RAISE EXCEPTION 'Test R2 FAILED: Expected an error but none occurred';
+    END IF;
+
+    -- Clean up: Reset stock if we modified an existing tape, delete customer, delete tape if created
+    IF NOT v_created_tape AND v_tape_id IS NOT NULL THEN
+         UPDATE tapes SET stock_available = v_initial_stock WHERE tape_id = v_tape_id; -- Restore original stock
+    ELSIF v_created_tape AND v_tape_id IS NOT NULL THEN
+         DELETE FROM tapes WHERE tape_id = v_tape_id;
+    END IF;
+    PERFORM pkg_customers.delete_customer(v_customer_id);
+END;
+$$;
+psql:sql_tests/test_rental_operations.sql:142: NOTICE:  Test R2: Attempt to rent a tape with zero stock available (should fail) (Email: rental.zerostock.2025-04-21 20:06:46.151358+00@example.com)
+psql:sql_tests/test_rental_operations.sql:142: NOTICE:  Test R2 PASSED: Received expected error: Error renting tape: Tape with ID 50 is not available for rental (current stock: 0)
+DO
+-- =============================================
+-- Test R3: Return a tape (on time)
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_return_date TIMESTAMP;
+    v_stock_before INTEGER;
+    v_stock_after INTEGER;
+    v_unique_email TEXT := 'rental.return.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test R3: Return a tape (on time) (Email: %)', v_unique_email;
+    
+    -- Create a unique test customer
+    v_customer_id := pkg_customers.add_customer(
+        'RentalTest', 'Return', v_unique_email, 
+        '555-RETURN', '123 Return St, Testville'
+    );
+    
+    -- Get an available tape
+    SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test R3 FAILED: Test setup issue - no tapes available for rental';
+    END IF;
+    
+    -- Rent the tape for this test
+    SELECT pkg_rentals.rent_tape(v_customer_id, v_tape_id) INTO v_rental_id;
+    
+    -- Get updated stock after rental
+    SELECT stock_available INTO v_stock_before
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    -- Return the tape (on time)
+    SELECT pkg_rentals.return_tape(v_rental_id) INTO v_return_date;
+    
+    IF v_return_date IS NULL THEN
+        RAISE EXCEPTION 'Test R3 FAILED: Tape return did not return a valid date';
+    END IF;
+    
+    -- Verify the rental was updated with a return date
+    IF NOT EXISTS (
+        SELECT 1 FROM rentals 
+        WHERE rental_id = v_rental_id AND return_date IS NOT NULL
+    ) THEN
+        RAISE EXCEPTION 'Test R3 FAILED: Rental ID % was not updated with a return date', v_rental_id;
+    END IF;
+    
+    -- Check if stock was updated
+    SELECT stock_available INTO v_stock_after
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    IF v_stock_after <> (v_stock_before + 1) THEN
+        RAISE NOTICE 'Warning: Stock was not incremented as expected. Before: %, After: %', 
+            v_stock_before, v_stock_after;
+    END IF;
+    
+    -- Check if late fees were not charged (since return is on time)
+    IF EXISTS (
+        SELECT 1 FROM rentals 
+        WHERE rental_id = v_rental_id AND late_fees > 0
+    ) THEN
+        RAISE EXCEPTION 'Test R3 FAILED: Late fees were incorrectly charged for on-time return';
+    END IF;
+    
+    RAISE NOTICE 'Test R3 PASSED: Successfully returned tape with return date %', v_return_date;
+
+    -- Clean up - Cannot delete customer due to history check.
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed
+END;
+$$;
+psql:sql_tests/test_rental_operations.sql:221: NOTICE:  Test R3: Return a tape (on time) (Email: rental.return.2025-04-21 20:06:46.209504+00@example.com)
+psql:sql_tests/test_rental_operations.sql:221: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 249
+psql:sql_tests/test_rental_operations.sql:221: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 54 after rental.
+psql:sql_tests/test_rental_operations.sql:221: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 249
+psql:sql_tests/test_rental_operations.sql:221: NOTICE:  Tape stock updated: Increased stock_available for tape ID 54 after return.
+psql:sql_tests/test_rental_operations.sql:221: NOTICE:  Test R3 PASSED: Successfully returned tape with return date 2025-04-21 20:06:46.209211
+DO
+-- =============================================
+-- Test R4: Return a tape (late, with late fees)
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_return_date TIMESTAMP;
+    v_late_fees NUMERIC(5,2);
+    v_unique_email TEXT := 'latefee.customer.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test R4: Return a tape (late, with late fees) (Email: %)', v_unique_email;
+    
+    -- Create a test customer with unique email
+    v_customer_id := pkg_customers.add_customer(
+        'LateFee', 'Customer', v_unique_email, 
+        '555-LATE', '456 Late Fee Rd, Testville'
+    );
+    
+    -- Get an available tape
+    SELECT tape_id INTO v_tape_id
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test R4 FAILED: Test setup issue - no tapes available for rental';
+    END IF;
+    
+    -- Create a rental record with a past date
+    INSERT INTO rentals (
+        customer_id, 
+        tape_id, 
+        rental_date, 
+        due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP - INTERVAL '10 days',  -- 10 days ago
+        CURRENT_TIMESTAMP - INTERVAL '3 days'    -- due 3 days ago
+    ) RETURNING rental_id INTO v_rental_id;
+    
+    -- Update tape stock to reflect the rental
+    UPDATE tapes
+    SET stock_available = stock_available - 1
+    WHERE tape_id = v_tape_id;
+    
+    -- Return the tape (late)
+    SELECT pkg_rentals.return_tape(v_rental_id) INTO v_return_date;
+    
+    -- Check that late fees were applied
+    SELECT late_fees INTO v_late_fees
+    FROM rentals
+    WHERE rental_id = v_rental_id;
+    
+    IF v_late_fees <= 0 THEN
+        RAISE EXCEPTION 'Test R4 FAILED: No late fees were charged for overdue rental';
+    END IF;
+    
+    RAISE NOTICE 'Test R4 PASSED: Successfully returned late tape with late fees of %', v_late_fees;
+
+    -- Clean up (Cannot delete customer due to history check in delete_customer)
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed
+END;
+$$;
+psql:sql_tests/test_rental_operations.sql:288: NOTICE:  Test R4: Return a tape (late, with late fees) (Email: latefee.customer.2025-04-21 20:06:46.291679+00@example.com)
+psql:sql_tests/test_rental_operations.sql:288: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 250
+psql:sql_tests/test_rental_operations.sql:288: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 2 after rental.
+psql:sql_tests/test_rental_operations.sql:288: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 250
+psql:sql_tests/test_rental_operations.sql:288: NOTICE:  Tape stock updated: Increased stock_available for tape ID 2 after return.
+psql:sql_tests/test_rental_operations.sql:288: NOTICE:  Test R4 PASSED: Successfully returned late tape with late fees of 7.49
+DO
+-- =============================================
+-- Test R5: Calculate late fees for an overdue rental
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_late_fees NUMERIC(5,2);
+    v_calculated_fees NUMERIC(5,2);
+    v_unique_email TEXT := 'calcfee.customer.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test R5: Calculate late fees for an overdue rental (Email: %)', v_unique_email;
+    
+    -- Create a test customer with unique email
+    v_customer_id := pkg_customers.add_customer(
+        'CalcFee', 'Customer', v_unique_email, 
+        '555-CALC', '789 Calc Fee Ave, Testville'
+    );
+    
+    -- Get an available tape
+    SELECT tape_id INTO v_tape_id
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test R5 FAILED: Test setup issue - no tapes available for rental';
+    END IF;
+    
+    -- Create a rental record with a past date (even more overdue)
+    INSERT INTO rentals (
+        customer_id, 
+        tape_id, 
+        rental_date, 
+        due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP - INTERVAL '15 days',  -- 15 days ago
+        CURRENT_TIMESTAMP - INTERVAL '8 days'    -- due 8 days ago
+    ) RETURNING rental_id INTO v_rental_id;
+    
+    -- Update tape stock to reflect the rental
+    UPDATE tapes
+    SET stock_available = stock_available - 1
+    WHERE tape_id = v_tape_id;
+    
+    -- Calculate late fees without returning the tape
+    SELECT pkg_rentals.calculate_late_fees(v_rental_id) INTO v_calculated_fees;
+    
+    IF v_calculated_fees <= 0 THEN
+        RAISE EXCEPTION 'Test R5 FAILED: No late fees calculated for overdue rental';
+    END IF;
+    
+    -- Return the tape and check if the late fees match the calculation
+    PERFORM pkg_rentals.return_tape(v_rental_id);
+    
+    SELECT late_fees INTO v_late_fees
+    FROM rentals
+    WHERE rental_id = v_rental_id;
+    
+    IF v_late_fees <> v_calculated_fees THEN
+        RAISE EXCEPTION 'Test R5 FAILED: Calculated fees (%) do not match applied fees (%)', 
+            v_calculated_fees, v_late_fees;
+    END IF;
+    
+    RAISE NOTICE 'Test R5 PASSED: Successfully calculated late fees of %', v_calculated_fees;
+
+    -- Clean up (Cannot delete customer due to history check in delete_customer)
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed
+END;
+$$;
+psql:sql_tests/test_rental_operations.sql:362: NOTICE:  Test R5: Calculate late fees for an overdue rental (Email: calcfee.customer.2025-04-21 20:06:46.367427+00@example.com)
+psql:sql_tests/test_rental_operations.sql:362: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 251
+psql:sql_tests/test_rental_operations.sql:362: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 54 after rental.
+psql:sql_tests/test_rental_operations.sql:362: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 251
+psql:sql_tests/test_rental_operations.sql:362: NOTICE:  Tape stock updated: Increased stock_available for tape ID 54 after return.
+psql:sql_tests/test_rental_operations.sql:362: NOTICE:  Test R5 PASSED: Successfully calculated late fees of 19.96
+DO
+-- =============================================
+-- Test R6: Extend a rental period
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_due_date TIMESTAMP;
+    v_new_due_date TIMESTAMP;
+    v_extension_days INTEGER := 5;
+    v_unique_email TEXT := 'extend.customer.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test R6: Extend a rental period (Email: %)', v_unique_email;
+    
+    -- Create a test customer with unique email
+    v_customer_id := pkg_customers.add_customer(
+        'Extend', 'Customer', v_unique_email, 
+        '555-EXTEND', '101 Extension Blvd, Testville'
+    );
+    
+    -- Get an available tape
+    SELECT tape_id INTO v_tape_id
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test R6 FAILED: Test setup issue - no tapes available for rental';
+    END IF;
+    
+    -- Create a rental record
+    INSERT INTO rentals (
+        customer_id, 
+        tape_id, 
+        rental_date, 
+        due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP + INTERVAL '7 days'
+    ) RETURNING rental_id, due_date INTO v_rental_id, v_due_date;
+    
+    -- Update tape stock to reflect the rental
+    UPDATE tapes
+    SET stock_available = stock_available - 1
+    WHERE tape_id = v_tape_id;
+    
+    -- Extend the rental period
+    SELECT pkg_rentals.extend_rental(v_rental_id, v_extension_days) INTO v_new_due_date;
+    
+    IF v_new_due_date IS NULL THEN
+        RAISE EXCEPTION 'Test R6 FAILED: Rental extension did not return a valid date';
+    END IF;
+    
+    -- Verify the due date was extended by the correct number of days
+    IF v_new_due_date <> (v_due_date + (v_extension_days || ' days')::interval) THEN
+        RAISE EXCEPTION 'Test R6 FAILED: Due date not extended correctly. Expected: %, Got: %',
+            v_due_date + (v_extension_days || ' days')::interval, v_new_due_date;
+    END IF;
+    
+    RAISE NOTICE 'Test R6 PASSED: Successfully extended rental due date from % to %', 
+        v_due_date, v_new_due_date;
+
+    -- Clean up
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id; -- Return tape before deleting customer
+    -- PERFORM pkg_customers.delete_customer(v_customer_id); -- Removed: Cannot delete customer due to history check
+END;
+$$; 
+psql:sql_tests/test_rental_operations.sql:433: NOTICE:  Test R6: Extend a rental period (Email: extend.customer.2025-04-21 20:06:46.444437+00@example.com)
+psql:sql_tests/test_rental_operations.sql:433: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 252
+psql:sql_tests/test_rental_operations.sql:433: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 2 after rental.
+psql:sql_tests/test_rental_operations.sql:433: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 252
+psql:sql_tests/test_rental_operations.sql:433: NOTICE:  Test R6 PASSED: Successfully extended rental due date from 2025-04-28 20:06:46.444119 to 2025-05-03 20:06:46.444119
+psql:sql_tests/test_rental_operations.sql:433: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 252
+psql:sql_tests/test_rental_operations.sql:433: NOTICE:  Tape stock updated: Increased stock_available for tape ID 2 after return.
+DO
+
+===== TRIGGER TESTS =====
+-- Test script for Trigger functionality
+-- Tests: TG1, TG2, TG3, TG4, TG5, TG6, TG7, TG8, TG9
+-- =============================================
+-- Test TG1: Verify tape stock decreases when rented
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_stock_before INTEGER;
+    v_stock_after INTEGER;
+    v_unique_email TEXT := 'trigger.test1.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test TG1: Verify tape stock decreases when rented (Email: %)', v_unique_email;
+    
+    -- Create a test customer with unique email
+    INSERT INTO customers (
+        first_name, last_name, email, phone, address, registration_date, active
+    ) VALUES (
+        'Trigger', 'TestUser1', v_unique_email, 
+        '555-TRIGGER1', '123 Trigger1 St, Testville', CURRENT_DATE, TRUE
+    ) RETURNING customer_id INTO v_customer_id;
+    
+    -- Get an available tape
+    SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test TG1 FAILED: No tapes available for testing';
+    END IF;
+    
+    -- Create a rental record - this should trigger stock update
+    INSERT INTO rentals (
+        customer_id, tape_id, rental_date, due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP + INTERVAL '7 days'
+    );
+    
+    -- Check if stock was updated by the trigger
+    SELECT stock_available INTO v_stock_after
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    IF v_stock_after <> (v_stock_before - 1) THEN
+        RAISE EXCEPTION 'Test TG1 FAILED: Stock not decremented by trigger. Before: %, After: %', 
+            v_stock_before, v_stock_after;
+    END IF;
+    
+    RAISE NOTICE 'Test TG1 PASSED: Stock correctly decreased from % to %', v_stock_before, v_stock_after;
+    
+    -- Clean up
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE customer_id = v_customer_id AND tape_id = v_tape_id AND return_date IS NULL; -- Return the specific rental
+END;
+$$;
+psql:sql_tests/test_triggers.sql:60: NOTICE:  Test TG1: Verify tape stock decreases when rented (Email: trigger.test1.2025-04-21 20:06:46.91453+00@example.com)
+psql:sql_tests/test_triggers.sql:60: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 253
+psql:sql_tests/test_triggers.sql:60: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 54 after rental.
+psql:sql_tests/test_triggers.sql:60: NOTICE:  Test TG1 PASSED: Stock correctly decreased from 4 to 3
+psql:sql_tests/test_triggers.sql:60: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 253
+psql:sql_tests/test_triggers.sql:60: NOTICE:  Tape stock updated: Increased stock_available for tape ID 54 after return.
+DO
+-- =============================================
+-- Test TG2: Verify tape stock increases when returned
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_stock_before INTEGER;
+    v_stock_after INTEGER;
+    v_unique_email TEXT := 'trigger.return.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test TG2: Verify tape stock increases when returned (Email: %)', v_unique_email;
+    
+    -- Create unique customer for this test
+    v_customer_id := pkg_customers.add_customer(
+        'Trigger', 'Return', v_unique_email, 
+        '555-RETURN', '123 Return St, Testville'
+    );
+    
+    -- Get an available tape
+    SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test TG2 FAILED: No tapes available for testing';
+    END IF;
+    
+    -- Create a rental record
+    INSERT INTO rentals (
+        customer_id, tape_id, rental_date, due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP + INTERVAL '7 days'
+    ) RETURNING rental_id INTO v_rental_id;
+    
+    -- Get stock after rental
+    SELECT stock_available INTO v_stock_before
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    -- Return the tape - this should trigger stock update
+    UPDATE rentals
+    SET return_date = CURRENT_TIMESTAMP
+    WHERE rental_id = v_rental_id;
+    
+    -- Check if stock was updated by the trigger
+    SELECT stock_available INTO v_stock_after
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    IF v_stock_after <> (v_stock_before + 1) THEN
+        RAISE EXCEPTION 'Test TG2 FAILED: Stock not incremented by trigger. Before: %, After: %', 
+            v_stock_before, v_stock_after;
+    END IF;
+    
+    RAISE NOTICE 'Test TG2 PASSED: Stock correctly increased from % to %', v_stock_before, v_stock_after;
+
+    -- Clean up
+    -- DELETE FROM customers WHERE customer_id = v_customer_id; -- Removed: Fails due to FK, and delete_customer might fail due to history
+END;
+$$;
+psql:sql_tests/test_triggers.sql:127: NOTICE:  Test TG2: Verify tape stock increases when returned (Email: trigger.return.2025-04-21 20:06:46.974639+00@example.com)
+psql:sql_tests/test_triggers.sql:127: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 254
+psql:sql_tests/test_triggers.sql:127: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 2 after rental.
+psql:sql_tests/test_triggers.sql:127: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 254
+psql:sql_tests/test_triggers.sql:127: NOTICE:  Tape stock updated: Increased stock_available for tape ID 2 after return.
+psql:sql_tests/test_triggers.sql:127: NOTICE:  Test TG2 PASSED: Stock correctly increased from 2 to 3
+DO
+-- =============================================
+-- Test TG3: Verify tape stock remains unchanged when rental is updated (without return)
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_stock_before INTEGER;
+    v_stock_after INTEGER;
+    v_unique_email TEXT := 'trigger.nochange.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test TG3: Verify tape stock remains unchanged when rental update (Email: %)', v_unique_email;
+    
+    -- Create unique customer for this test
+    v_customer_id := pkg_customers.add_customer(
+        'Trigger', 'NoChange', v_unique_email, 
+        '555-NOCHANGE', '123 NoChange St, Testville'
+    );
+    
+    -- Get an available tape
+    SELECT tape_id, stock_available INTO v_tape_id, v_stock_before
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test TG3 FAILED: No tapes available for testing';
+    END IF;
+    
+    -- Create a rental record
+    INSERT INTO rentals (
+        customer_id, tape_id, rental_date, due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP + INTERVAL '7 days'
+    ) RETURNING rental_id INTO v_rental_id;
+    
+    -- Get stock after rental
+    SELECT stock_available INTO v_stock_before
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    -- Update the rental (but not the return_date) - this should NOT trigger stock update
+    UPDATE rentals
+    SET due_date = due_date + INTERVAL '3 days'
+    WHERE rental_id = v_rental_id;
+    
+    -- Check if stock remained unchanged
+    SELECT stock_available INTO v_stock_after
+    FROM tapes
+    WHERE tape_id = v_tape_id;
+    
+    IF v_stock_after <> v_stock_before THEN
+        RAISE EXCEPTION 'Test TG3 FAILED: Stock changed incorrectly. Before: %, After: %', 
+            v_stock_before, v_stock_after;
+    END IF;
+    
+    RAISE NOTICE 'Test TG3 PASSED: Stock correctly remained at % after rental update', v_stock_after;
+    
+    -- Clean up - return the tape
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id;
+END;
+$$;
+psql:sql_tests/test_triggers.sql:194: NOTICE:  Test TG3: Verify tape stock remains unchanged when rental update (Email: trigger.nochange.2025-04-21 20:06:47.036609+00@example.com)
+psql:sql_tests/test_triggers.sql:194: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 255
+psql:sql_tests/test_triggers.sql:194: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 54 after rental.
+psql:sql_tests/test_triggers.sql:194: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 255
+psql:sql_tests/test_triggers.sql:194: NOTICE:  Test TG3 PASSED: Stock correctly remained at 3 after rental update
+psql:sql_tests/test_triggers.sql:194: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 255
+psql:sql_tests/test_triggers.sql:194: NOTICE:  Tape stock updated: Increased stock_available for tape ID 54 after return.
+DO
+-- =============================================
+-- Test TG4: Verify prevention of customer deletion with active rentals
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_error BOOLEAN := FALSE;
+    v_unique_email TEXT := 'delete.test.' || clock_timestamp()::text || '@example.com';
+BEGIN
+    RAISE NOTICE 'Test TG4: Verify prevention of customer deletion with active rentals (Email: %)', v_unique_email;
+    
+    -- Create a new test customer specifically for this test with unique email
+    INSERT INTO customers (
+        first_name, last_name, email, phone, address, registration_date, active
+    ) VALUES (
+        'DeleteTest', 'Customer', v_unique_email, 
+        '555-DELETE', '123 Delete St, Testville', CURRENT_DATE, TRUE
+    ) RETURNING customer_id INTO v_customer_id;
+    
+    -- Get an available tape
+    SELECT tape_id INTO v_tape_id
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test TG4 FAILED: No tapes available for testing';
+    END IF;
+    
+    -- Create a rental record (active rental)
+    INSERT INTO rentals (
+        customer_id, tape_id, rental_date, due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP + INTERVAL '7 days'
+    ) RETURNING rental_id INTO v_rental_id;
+    
+    -- Try to delete the customer - should fail because of active rental
+    BEGIN
+        -- Call the package function to attempt deletion
+        PERFORM pkg_customers.delete_customer(v_customer_id);
+        
+        -- If we get here, the function didn't raise an exception as expected
+        RAISE EXCEPTION 'Test TG4 FAILED: Customer with active rentals was deleted, but should have been prevented';
+    EXCEPTION
+        WHEN OTHERS THEN
+            -- This is expected behavior - the exception should be caught
+            v_error := TRUE;
+            -- Check if the error message matches the expected trigger/function message
+            IF SQLERRM LIKE '%Cannot delete customer%active rental%' THEN
+                RAISE NOTICE 'Test TG4 PASSED: Received expected error: %', SQLERRM;
+            ELSE
+                RAISE EXCEPTION 'Test TG4 FAILED: Received unexpected error: %', SQLERRM;
+            END IF;
+    END;
+    
+    IF NOT v_error THEN
+        RAISE EXCEPTION 'Test TG4 FAILED: Expected an error when trying to delete customer with active rentals';
+    END IF;
+    
+    -- Clean up - return the tape
+    UPDATE rentals SET return_date = CURRENT_TIMESTAMP WHERE rental_id = v_rental_id;
+END;
+$$;
+psql:sql_tests/test_triggers.sql:263: NOTICE:  Test TG4: Verify prevention of customer deletion with active rentals (Email: delete.test.2025-04-21 20:06:47.097579+00@example.com)
+psql:sql_tests/test_triggers.sql:263: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 256
+psql:sql_tests/test_triggers.sql:263: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 2 after rental.
+psql:sql_tests/test_triggers.sql:263: NOTICE:  Test TG4 PASSED: Received expected error: Error deleting customer: Cannot delete customer with ID 386 as they have 1 active rentals
+psql:sql_tests/test_triggers.sql:263: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 256
+psql:sql_tests/test_triggers.sql:263: NOTICE:  Tape stock updated: Increased stock_available for tape ID 2 after return.
+DO
+-- =============================================
+-- Test TG5-TG8: Verify audit log entries for rental activities
+-- NOTE: Assuming the audit_log table and its trigger exist.
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_rental_id INTEGER;
+    v_log_count INTEGER;
+BEGIN
+    RAISE NOTICE 'Test TG5-TG8: Verify audit log entries for rental activities';
+    
+    -- Use a unique customer email for this test run
+    v_customer_id := pkg_customers.add_customer(
+        'Audit', 'TestUser' || clock_timestamp()::text,
+        'audit.test.' || clock_timestamp()::text || '@example.com', 
+        '555-AUDIT', '123 Audit St, Testville'
+    );
+    
+    -- Get an available tape
+    SELECT tape_id INTO v_tape_id
+    FROM tapes
+    WHERE stock_available > 0
+    LIMIT 1;
+    
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test TG5-TG8 FAILED: No tapes available for testing';
+    END IF;
+    
+    -- Clear previous logs for this test (optional, depends on requirements)
+    -- DELETE FROM audit_log WHERE table_name = 'rentals' AND record_id IN (SELECT rental_id FROM rentals WHERE customer_id = v_customer_id);
+
+    -- Create a rental record - should generate INSERT audit log
+    INSERT INTO rentals (
+        customer_id, tape_id, rental_date, due_date
+    ) VALUES (
+        v_customer_id,
+        v_tape_id,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP + INTERVAL '7 days'
+    ) RETURNING rental_id INTO v_rental_id;
+    
+    -- Check if an INSERT audit log entry was created for this rental_id
+    SELECT COUNT(*) INTO v_log_count FROM audit_log 
+    WHERE table_name = 'rentals' AND operation = 'INSERT' AND record_id = v_rental_id;
+    IF v_log_count = 1 THEN
+        RAISE NOTICE 'Test TG5 PASSED: Audit log entry created for rental creation (INSERT)';
+    ELSE
+        RAISE WARNING 'Test TG5 FAILED: Expected 1 INSERT log entry for rental_id %, found %', v_rental_id, v_log_count;
+    END IF;
+    
+    -- Update the rental - should generate UPDATE audit log
+    UPDATE rentals
+    SET due_date = due_date + INTERVAL '3 days'
+    WHERE rental_id = v_rental_id;
+    
+    -- Check if an UPDATE audit log entry was created
+    SELECT COUNT(*) INTO v_log_count FROM audit_log 
+    WHERE table_name = 'rentals' AND operation = 'UPDATE' AND record_id = v_rental_id;
+    IF v_log_count >= 1 THEN -- Allow for multiple updates if logic changes
+        RAISE NOTICE 'Test TG6 PASSED: Audit log entry created for rental update (UPDATE)';
+    ELSE
+        RAISE WARNING 'Test TG6 FAILED: Expected at least 1 UPDATE log entry for rental_id %, found %', v_rental_id, v_log_count;
+    END IF;
+    
+    -- Return the tape - should generate another UPDATE audit log
+    UPDATE rentals
+    SET return_date = CURRENT_TIMESTAMP
+    WHERE rental_id = v_rental_id;
+    
+    -- Check if a RETURN-related UPDATE audit log entry was created
+    -- Note: This relies on the trigger creating a distinct entry or detail for return
+    SELECT COUNT(*) INTO v_log_count FROM audit_log 
+    WHERE table_name = 'rentals' AND operation = 'UPDATE' AND record_id = v_rental_id AND details LIKE '%Rental returned%';
+    IF v_log_count >= 1 THEN
+        RAISE NOTICE 'Test TG7 PASSED: Audit log entry created for rental return (UPDATE)';
+    ELSE
+        RAISE WARNING 'Test TG7 FAILED: Expected at least 1 return UPDATE log entry for rental_id %, found %', v_rental_id, v_log_count;
+    END IF;
+    
+    -- Delete the rental record - should generate DELETE audit log
+    DELETE FROM rentals WHERE rental_id = v_rental_id;
+    
+    -- Check if a DELETE audit log entry was created
+    SELECT COUNT(*) INTO v_log_count FROM audit_log 
+    WHERE table_name = 'rentals' AND operation = 'DELETE' AND record_id = v_rental_id;
+    IF v_log_count = 1 THEN
+        RAISE NOTICE 'Test TG8 PASSED: Audit log entry created for rental deletion (DELETE)';
+    ELSE
+        RAISE WARNING 'Test TG8 FAILED: Expected 1 DELETE log entry for rental_id %, found %', v_rental_id, v_log_count;
+    END IF;
+    
+    -- Clean up customer
+    DELETE FROM customers WHERE customer_id = v_customer_id;
+END;
+$$;
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Test TG5-TG8: Verify audit log entries for rental activities
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Audit log entry created for INSERT on rentals, record ID: 257
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Tape stock updated: Decreased stock_available for tape ID 54 after rental.
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Test TG5 PASSED: Audit log entry created for rental creation (INSERT)
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 257
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Test TG6 PASSED: Audit log entry created for rental update (UPDATE)
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Audit log entry created for UPDATE on rentals, record ID: 257
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Tape stock updated: Increased stock_available for tape ID 54 after return.
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Test TG7 PASSED: Audit log entry created for rental return (UPDATE)
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Audit log entry created for DELETE on rentals, record ID: 257
+psql:sql_tests/test_triggers.sql:361: NOTICE:  Test TG8 PASSED: Audit log entry created for rental deletion (DELETE)
+DO
+-- =============================================
+-- Test TG9: Verify prevention of renting unavailable tapes
+-- =============================================
+DO $$
+DECLARE
+    v_customer_id INTEGER;
+    v_tape_id INTEGER;
+    v_error BOOLEAN := FALSE;
+    v_error_message TEXT;
+BEGIN
+    RAISE NOTICE 'Test TG9: Verify prevention of renting unavailable tapes';
+    
+    -- Create a unique customer for this test
+    v_customer_id := pkg_customers.add_customer(
+        'NoStock', 'Test9' || clock_timestamp()::text, 
+        'nostock.test9.' || clock_timestamp()::text || '@example.com', 
+        '555-NOSTOCK9', '123 NoStock9 St'
+    );
+
+    -- Find a tape and set its stock to 0
+    SELECT tape_id INTO v_tape_id
+    FROM tapes
+    LIMIT 1;
+
+    IF v_tape_id IS NULL THEN
+        RAISE EXCEPTION 'Test TG9 FAILED: Setup error - No tapes found';
+    END IF;
+
+    UPDATE tapes SET stock_available = 0 WHERE tape_id = v_tape_id;
+
+    -- Attempt to rent the tape (should fail)
+    BEGIN
+        INSERT INTO rentals (customer_id, tape_id, rental_date, due_date)
+        VALUES (v_customer_id, v_tape_id, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP + INTERVAL '1 day');
+        
+        RAISE EXCEPTION 'Test TG9 FAILED: Renting of unavailable tape was allowed, but should have been prevented.';
+    EXCEPTION
+        WHEN OTHERS THEN
+            v_error := TRUE;
+            v_error_message := SQLERRM;
+            -- Check if the error message indicates stock issue
+            IF v_error_message LIKE '%No copies currently in stock%' THEN
+                 RAISE NOTICE 'Test TG9 PASSED: Received expected error: %', v_error_message;
+            ELSE
+                 RAISE NOTICE 'Test TG9 FAILED: Received unexpected error: %', v_error_message;
+            END IF;
+    END;
+
+    IF NOT v_error THEN
+        RAISE EXCEPTION 'Test TG9 FAILED: Expected an error but none occurred.';
+    END IF;
+
+    -- Clean up: Reset stock if needed (optional)
+    -- UPDATE tapes SET stock_available = (SELECT total_stock FROM tapes WHERE tape_id = v_tape_id) WHERE tape_id = v_tape_id;
+
+END;
+$$; 
+psql:sql_tests/test_triggers.sql:419: NOTICE:  Test TG9: Verify prevention of renting unavailable tapes
+psql:sql_tests/test_triggers.sql:419: NOTICE:  Test TG9 PASSED: Received expected error: Cannot rent tape "The Ring" (ID: 20): No copies currently in stock.
+DO
+
+
+====================================================
+  TEST EXECUTION COMPLETED
+====================================================
